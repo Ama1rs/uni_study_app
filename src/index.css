@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* IDE-Style Dark Theme */
+  --bg-primary: #0a0a0a;
+  --bg-surface: #121212;
+  --bg-hover: #1a1a1a;
+
+  --border: rgba(255, 255, 255, 0.06);
+  --border-light: rgba(255, 255, 255, 0.1);
+
+  --text-primary: #e0e0e0;
+  --text-secondary: #777777;
+  --text-tertiary: #444444;
+
+  /* Cyan/Teal Accent */
+  --accent: hsl(180, 70%, 55%);
+  --accent-hover: hsl(180, 70%, 45%);
+  --accent-dim: rgba(0, 255, 255, 0.1);
+
+  /* Glass Background Default */
+  --glass-bg: rgba(18, 18, 18, 0.6);
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+  /* Prevent body scroll, handle in panes */
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-hover);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-light);
+}
+
+/* Glass Card Utility */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* Accent badge (gradient) */
+.accent-badge {
+  background: linear-gradient(135deg, rgba(29,161,242,0.12), rgba(236,72,153,0.10));
+  border-radius: 8px;
+  padding: 6px;
+}
+
+/* Card hover / elevation */
+.card-hover {
+  transition: transform 220ms cubic-bezier(.2,.9,.2,1), box-shadow 220ms ease, background-color 180ms ease;
+}
+.card-hover:hover {
+  transform: translateY(-6px) scale(1.01);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+}
+
+/* Grid container for repository resources */
+.glass-grid {
+  padding: 18px;
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 16px;
+}
+@media (min-width: 768px) {
+  .glass-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) {
+  .glass-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* Subtle shimmer skeleton (optional) */
+/* Disabled shimmer/gradient to remove page artifacts */
+.shimmer {
+  background: transparent;
+  animation: none;
+}
+@keyframes shimmer { 0% { background-position: 0 0 } 100% { background-position: 0 0 } }
+
+/* Utilities */
+.no-drag {
+  -webkit-app-region: no-drag;
+}

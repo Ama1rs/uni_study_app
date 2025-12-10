@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    metric_key TEXT NOT NULL,
+    value REAL NOT NULL,
+    recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS onboarding_state (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    completed INTEGER NOT NULL DEFAULT 0,
+    data TEXT
+);
