@@ -22,3 +22,23 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Rust
+target/
+**/target/
+
+# Tauri build outputs
+src-tauri/target/
+src-tauri/gen/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Local LLMs
+*.gguf
+local_models/
+models/
+
+# Environment
+*.env
