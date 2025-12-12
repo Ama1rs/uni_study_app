@@ -1,4 +1,4 @@
-import { Home, Calendar, BookOpen, Timer, MessageSquare } from 'lucide-react';
+import { Home, Calendar, BookOpen, Timer, MessageSquare, GraduationCap } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface SidebarProps {
@@ -17,6 +17,7 @@ export function Sidebar({
         { id: 'repository', label: 'Repository', icon: BookOpen },
         { id: 'planner', label: 'Planner', icon: Calendar },
         { id: 'focus', label: 'Focus', icon: Timer },
+        { id: 'grades', label: 'Grades', icon: GraduationCap },
         { id: 'chat', label: 'Chat', icon: MessageSquare },
     ];
 

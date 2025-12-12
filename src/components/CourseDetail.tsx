@@ -125,7 +125,7 @@ export function CourseDetail({ course, onBack }: CourseDetailProps) {
 
         try {
             await invoke('import_resource', {
-                repository_id: course.id,
+                repositoryId: course.id,
                 filePath: path
             });
             loadResources();
@@ -138,7 +138,7 @@ export function CourseDetail({ course, onBack }: CourseDetailProps) {
         if (!noteContent) return;
         try {
             await invoke('process_text_to_nodes', {
-                repository_id: course.id,
+                repositoryId: course.id,
                 text: noteContent
             });
             setNoteContent('');

@@ -5,7 +5,12 @@ import { openPath } from '@tauri-apps/plugin-opener';
 import { KnowledgeGraph } from './KnowledgeGraph';
 import { YouTubeLinks } from './YouTubeLinks';
 import { NoteEditor } from './NoteEditor';
+import { NodeDetailPanel } from './NodeDetailPanel';
+import { SearchFilterPanel } from './SearchFilterPanel';
+import { LinkDialog } from './LinkDialog';
+import { LinkV2, LinkType } from '../types/node-system';
 import { ArrowLeft, Search, Filter, FileText, StickyNote, Link as LinkIcon, Settings, Upload, Trash2, LayoutTemplate, Video, Edit, Image as ImageIcon, File as FileIcon, X } from 'lucide-react';
+
 
 interface Repository {
     id: number;
@@ -24,11 +29,7 @@ interface Resource {
     tags?: string;
 }
 
-interface Link {
-    id: number;
-    source_id: number;
-    target_id: number;
-}
+// Replaced local Link interface with LinkV2 from types
 
 interface RepositoryViewProps {
     repository: Repository;
@@ -40,7 +41,8 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
     const [searchQuery, setSearchQuery] = useState('');
 
     const [resources, setResources] = useState<Resource[]>([]);
-    const [links, setLinks] = useState<Link[]>([]);
+    const [links, setLinks] = useState<LinkV2[]>([]);
+    const [linkTypes, setLinkTypes] = useState<LinkType[]>([]);
     const [isImporting, setIsImporting] = useState(false);
     const [showTemplates, setShowTemplates] = useState(false);
     const [showAddNote, setShowAddNote] = useState(false);
@@ -48,6 +50,11 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
     const [editingNote, setEditingNote] = useState<Resource | null>(null);
     const [previewResource, setPreviewResource] = useState<Resource | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+
+    // Link Dialog State
+    const [showLinkDialog, setShowLinkDialog] = useState(false);
+    const [linkSourceId, setLinkSourceId] = useState<number | null>(null);
 
     useEffect(() => {
         loadData();
@@ -69,44 +76,122 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
         }
     }, [previewResource]);
 
+    // Keyboard shortcuts
+    useEffect(() => {
+        function handleKeyDown(e: KeyboardEvent) {
+            // Only if graph view is active and a node is selected
+            if (activeView !== 'graph' || !selectedNodeId) return;
+
+            // Ignore if typing in an input
+            if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
+
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                const res = resources.find(r => r.id === selectedNodeId);
+                if (res) {
+                    if (confirm(`Are you sure you want to delete "${res.title}"?`)) {
+                        invoke('delete_resource', { id: res.id })
+                            .then(() => {
+                                loadData();
+                                setSelectedNodeId(null);
+                            })
+                            .catch(err => console.error(err));
+                    }
+                }
+            }
+
+            if (e.key === 'e' || e.key === 'E') {
+                const res = resources.find(r => r.id === selectedNodeId);
+                if (res) handleResourceOpen(res);
+            }
+
+            if (e.key === 'Escape') {
+                setSelectedNodeId(null);
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [activeView, selectedNodeId, resources]);
+
+    // State for filtering - MOVED UP due to dependency
+    const [showFilters, setShowFilters] = useState(false);
+    const [filterTypes, setFilterTypes] = useState<string[]>([]);
+    const [filterStatus, setFilterStatus] = useState<string[]>([]);
+
+    // Determine available types dynamically from current resources
+    const availableTypes = Array.from(new Set(resources.map(r => r.type)));
+
+    const filteredResources = resources.filter(r => {
+        // Search query
+        const matchesSearch = r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (r.tags && r.tags.toLowerCase().includes(searchQuery.toLowerCase()));
+
+        // Type filter
+        const matchesType = filterTypes.length === 0 || filterTypes.includes(r.type);
+        return matchesSearch && matchesType;
+    });
+
     async function loadData() {
         try {
-            const [resResources, resLinks] = await Promise.all([
+            const [resResources, resLinks, resTypes] = await Promise.all([
                 invoke<Resource[]>('get_resources', { repository_id: repository.id }),
-                invoke<Link[]>('get_links')
+                invoke<LinkV2[]>('get_links_v2_cmd'),
+                invoke<LinkType[]>('get_link_types_cmd')
             ]);
             setResources(resResources);
             setLinks(resLinks);
-        } catch (e) { console.error(e); }
+            setLinkTypes(resTypes);
+        } catch (e) {
+            console.error("Error loading data:", e);
+            // Fallback for legacy links if v2 fails (migration might not have run or empty)
+            try {
+                const legacyLinks = await invoke<any[]>('get_links');
+                if (legacyLinks.length > 0 && links.length === 0) {
+                    console.log("Fallback to legacy links");
+                    setLinks(legacyLinks.map(l => ({
+                        id: l.id,
+                        source_id: l.source_id,
+                        target_id: l.target_id,
+                        strength: 1,
+                        bidirectional: false
+                    })));
+                }
+            } catch (err) { console.error(err); }
+        }
     }
 
     // Transform resources to graph data
+    // Use filteredResources so the graph reflects the current search/filter state
     const graphData = {
-        nodes: resources.map(r => ({
+        nodes: filteredResources.map(r => ({
             id: r.id.toString(),
             name: r.title,
             val: r.type === 'note' ? 2 : 1,
             color:
                 r.type === 'pdf' ? '#ef4444' :
-                r.type === 'note' ? '#eab308' :
-                r.type === 'image' ? '#10b981' :
-                r.type === 'document' ? '#8b5cf6' :
-                r.type === 'video' ? '#a855f7' :
-                '#3b82f6',
+                    r.type === 'note' ? '#eab308' :
+                        r.type === 'image' ? '#10b981' :
+                            r.type === 'document' ? '#8b5cf6' :
+                                r.type === 'video' ? '#a855f7' :
+                                    '#3b82f6',
             type: r.type
         })),
         links: links
-            .filter(l => resources.some(r => r.id === l.source_id) && resources.some(r => r.id === l.target_id))
-            .map(l => ({
-                source: l.source_id.toString(),
-                target: l.target_id.toString()
-            }))
+            .filter(l => filteredResources.some(r => r.id === l.source_id) && filteredResources.some(r => r.id === l.target_id))
+            .map(l => {
+                const typeInfo = linkTypes.find(t => t.id === l.type_id);
+                return {
+                    source: l.source_id.toString(),
+                    target: l.target_id.toString(),
+                    color: typeInfo?.color || 'rgba(255,255,255,0.2)',
+                    width: l.strength ? l.strength * 2 : 1,
+                    dashed: typeInfo?.stroke_style !== 'solid'
+                };
+            })
     };
 
-    const filteredResources = resources.filter(r =>
-        r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (r.tags && r.tags.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
+
+    // (State definitions for filters moved up)
 
     async function importFile() {
         try {
@@ -121,7 +206,7 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
 
             if (selected && typeof selected === 'string') {
                 await invoke('import_resource', {
-                    repository_id: repository.id,
+                    repositoryId: repository.id,
                     filePath: selected
                 });
                 loadData();
@@ -150,7 +235,7 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
         if (!noteContent) { alert("Empty note!"); return; }
         try {
             await invoke('process_text_to_nodes', {
-                repository_id: repository.id,
+                repositoryId: repository.id,
                 text: noteContent
             });
             setNoteContent('');
@@ -233,9 +318,13 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
                 </div>
             </div>
 
+
+
+            // ...
+
             {/* Toolbar - hidden on Videos page */}
             {activeView !== 'videos' && (
-                <div className="flex-shrink-0 flex gap-4 p-6 border-b border-border bg-bg-base" style={{ borderColor: 'var(--border)' }}>
+                <div className="flex-shrink-0 flex gap-4 p-6 border-b border-border bg-bg-base relative" style={{ borderColor: 'var(--border)' }}>
                     <div className="flex-1 relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
                         <input
@@ -247,9 +336,45 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
                             style={{ borderColor: 'var(--border)', color: 'var(--text-primary)' }}
                         />
                     </div>
-                    <button className="px-4 py-2.5 rounded-xl border flex items-center gap-2 hover:bg-white/5 transition-colors" style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}>
-                        <Filter size={18} /> Filter
-                    </button>
+
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`px-4 py-2.5 rounded-xl border flex items-center gap-2 transition-colors ${(filterTypes.length > 0 || filterStatus.length > 0)
+                                ? 'bg-accent/10 border-accent text-accent'
+                                : 'hover:bg-white/5 text-text-secondary'
+                                }`}
+                            style={{ borderColor: (filterTypes.length > 0) ? '' : 'var(--border)' }}
+                        >
+                            <Filter size={18} />
+                            Filter
+                            {(filterTypes.length > 0) && (
+                                <span className="bg-accent text-white text-[10px] px-1.5 py-0.5 rounded-full min-w-[1.2em] text-center">
+                                    {filterTypes.length}
+                                </span>
+                            )}
+                        </button>
+
+                        <SearchFilterPanel
+                            isOpen={showFilters}
+                            onClose={() => setShowFilters(false)}
+                            selectedTypes={filterTypes}
+                            onToggleType={(type) => {
+                                setFilterTypes(prev =>
+                                    prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
+                                );
+                            }}
+                            availableTypes={availableTypes}
+                            selectedStatus={filterStatus}
+                            onToggleStatus={(status) => {
+                                setFilterStatus(prev =>
+                                    prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+                                );
+                            }}
+                            availableStatuses={[]} // Disabling status filter for now as discussed
+                        />
+                    </div>
+
                     <button onClick={() => setShowTemplates(true)} className="px-4 py-2.5 rounded-xl border flex items-center gap-2 hover:bg-white/5 transition-colors" style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }} title="Templates">
                         <LayoutTemplate size={18} /> Template
                     </button>
@@ -263,7 +388,32 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
             <div className="flex-1 min-h-0 overflow-hidden relative bg-bg-base">
                 {/* Graph View */}
                 <div className={`absolute inset-0 w-full h-full ${activeView === 'graph' ? 'block' : 'hidden'}`}>
-                    <KnowledgeGraph data={graphData} />
+                    <KnowledgeGraph
+                        data={graphData}
+                        onNodeClick={(node) => {
+                            if (node) {
+                                setSelectedNodeId(parseInt(node.id));
+                            } else {
+                                setSelectedNodeId(null);
+                            }
+                        }}
+                        onEditNode={(node) => {
+                            // Find full resource object
+                            const res = resources.find(r => r.id.toString() === node.id);
+                            if (res) handleResourceOpen(res);
+                        }}
+                        onDeleteNode={(node) => {
+                            if (confirm(`Are you sure you want to delete "${node.name}"?`)) {
+                                invoke('delete_resource', { id: parseInt(node.id) })
+                                    .then(() => loadData())
+                                    .catch(e => alert(`Failed to delete: ${e}`));
+                            }
+                        }}
+                        onLinkNode={(node) => {
+                            setLinkSourceId(parseInt(node.id));
+                            setShowLinkDialog(true);
+                        }}
+                    />
                 </div>
 
                 {/* List View */}
@@ -284,14 +434,13 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
                                     className="aspect-video bg-black/40 relative flex items-center justify-center overflow-hidden"
                                     onClick={() => handleResourceOpen(res)}
                                 >
-                                    <div className={`flex flex-col items-center gap-2 ${
-                                        res.type === 'pdf' ? 'text-red-400' :
+                                    <div className={`flex flex-col items-center gap-2 ${res.type === 'pdf' ? 'text-red-400' :
                                         res.type === 'note' ? 'text-yellow-400' :
-                                        res.type === 'image' ? 'text-emerald-400' :
-                                        res.type === 'document' ? 'text-purple-300' :
-                                        res.type === 'video' ? 'text-purple-400' :
-                                        'text-blue-400'
-                                    }`}>
+                                            res.type === 'image' ? 'text-emerald-400' :
+                                                res.type === 'document' ? 'text-purple-300' :
+                                                    res.type === 'video' ? 'text-purple-400' :
+                                                        'text-blue-400'
+                                        }`}>
                                         {res.type === 'pdf' && <FileText size={32} strokeWidth={1.5} />}
                                         {res.type === 'note' && <StickyNote size={32} strokeWidth={1.5} />}
                                         {res.type === 'file' && <LinkIcon size={32} strokeWidth={1.5} />}
@@ -324,14 +473,13 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
                                 <div className="p-4 relative">
                                     <h3 className="font-semibold text-text-primary line-clamp-2 leading-relaxed mb-2 group-hover:text-accent transition-colors">{res.title}</h3>
                                     <div className="flex items-center justify-between">
-                                        <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full ${
-                                            res.type === 'pdf' ? 'bg-red-500/10 text-red-400' :
+                                        <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full ${res.type === 'pdf' ? 'bg-red-500/10 text-red-400' :
                                             res.type === 'note' ? 'bg-yellow-500/10 text-yellow-400' :
-                                            res.type === 'image' ? 'bg-emerald-500/10 text-emerald-400' :
-                                            res.type === 'document' ? 'bg-purple-500/10 text-purple-400' :
-                                            res.type === 'video' ? 'bg-purple-500/10 text-purple-400' :
-                                            'bg-blue-500/10 text-blue-400'
-                                        }`}>{res.type}</span>
+                                                res.type === 'image' ? 'bg-emerald-500/10 text-emerald-400' :
+                                                    res.type === 'document' ? 'bg-purple-500/10 text-purple-400' :
+                                                        res.type === 'video' ? 'bg-purple-500/10 text-purple-400' :
+                                                            'bg-blue-500/10 text-blue-400'
+                                            }`}>{res.type}</span>
                                         {res.tags && <span className="text-xs px-2 py-1 rounded bg-white/5 text-gray-400">#{res.tags}</span>}
                                     </div>
                                 </div>
@@ -517,6 +665,33 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
                     onDelete={() => {
                         loadData();
                         setEditingNote(null);
+                    }}
+                />
+            )}
+
+            {/* Node Detail Panel */}
+            {selectedNodeId && (
+                <NodeDetailPanel
+                    nodeId={selectedNodeId}
+                    title={resources.find(r => r.id === selectedNodeId)?.title || 'Unknown'}
+                    type={resources.find(r => r.id === selectedNodeId)?.type || 'file'}
+                    onClose={() => setSelectedNodeId(null)}
+                    onMetadataChange={() => { /* maybe refresh graph if needed */ }}
+                />
+            )}
+
+            {showLinkDialog && linkSourceId && (
+                <LinkDialog
+                    sourceId={linkSourceId}
+                    resources={resources}
+                    onClose={() => {
+                        setShowLinkDialog(false);
+                        setLinkSourceId(null);
+                    }}
+                    onLinkCreated={() => {
+                        loadData();
+                        setShowLinkDialog(false);
+                        setLinkSourceId(null);
                     }}
                 />
             )}

@@ -10,6 +10,7 @@ import { StudyRepository } from "./components/StudyRepository";
 import { Planner } from "./components/Planner";
 import { FocusMode } from "./components/FocusMode";
 import { ChatLocalLLM } from "./components/ChatLocalLLM.tsx";
+import { Grades } from "./components/Grades";
 import { SettingsModal } from "./components/SettingsModal";
 import { Onboarding } from "./components/onboarding/Onboarding";
 import { HomeHub } from "./components/HomeHub";
@@ -28,7 +29,7 @@ function AppContent() {
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(true);
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
-  const [isOnboarding, setIsOnboarding] = useState<boolean>(true);
+
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [currentUser, setCurrentUser] = useState<UserPublic | null>(null);
   const [onboardingComplete, setOnboardingComplete] = useState<boolean>(false);
@@ -46,7 +47,6 @@ function AppContent() {
         ]);
         setCurrentUser(user);
         setOnboardingComplete(onboardingState.completed);
-        setIsOnboarding(!onboardingState.completed);
 
         if (!onboardingState.completed) {
           const appWindow = getCurrentWindow();
@@ -55,7 +55,6 @@ function AppContent() {
         }
       } catch (e) {
         console.error("Failed to check onboarding/auth status:", e);
-        setIsOnboarding(true);
       } finally {
         setIsLoading(false);
         setAuthChecked(true);
@@ -75,7 +74,6 @@ function AppContent() {
       });
 
       setCurrentUser(null);
-      setIsOnboarding(true);
       setOnboardingComplete(false);
       setActiveView("main");
 
@@ -97,7 +95,6 @@ function AppContent() {
       await refreshProfile();
       const onboardingState = await invoke<{ completed: boolean }>('get_onboarding_state');
       setOnboardingComplete(onboardingState.completed);
-      setIsOnboarding(!onboardingState.completed);
     }} />;
   }
 
@@ -105,7 +102,6 @@ function AppContent() {
     return <Onboarding userId={currentUser?.id} onComplete={async () => {
       await refreshProfile();
       setOnboardingComplete(true);
-      setIsOnboarding(false);
     }} />;
   }
 
@@ -153,6 +149,7 @@ function AppContent() {
         {activeView === "planner" && <Planner />}
         {activeView === "repository" && <StudyRepository />}
         {activeView === "focus" && <FocusMode />}
+        {activeView === "grades" && <Grades />}
         {activeView === "chat" && <ChatLocalLLM />}
       </div>
       <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />

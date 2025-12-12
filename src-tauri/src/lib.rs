@@ -1,4 +1,5 @@
 mod db;
+mod grades;
 mod inference;
 mod ollama;
 
@@ -10,10 +11,10 @@ use db::DbState;
 use inference::SharedModelState;
 use ollama::{ChatMessage, ChatOptions, OllamaClient};
 use rand_core::OsRng;
+use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Mutex;
-use rusqlite::OptionalExtension;
 use tauri::{Manager, State};
 
 #[derive(Serialize, Deserialize)]
@@ -60,6 +61,10 @@ pub struct Repository {
     pub code: Option<String>,
     pub semester: Option<String>,
     pub description: Option<String>,
+    pub credits: f64,
+    pub semester_id: Option<i64>,
+    pub manual_grade: Option<f64>,
+    pub status: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -73,7 +78,7 @@ pub struct Lecture {
 
 // Re-export Link from db
 pub use db::Link;
-pub use db::PlannerEvent;
+pub use db::{LinkType, LinkV2, PlannerEvent, ResourceMetadata};
 
 fn hash_password(password: &str) -> Result<String, String> {
     let salt = SaltString::generate(&mut OsRng);
@@ -119,7 +124,11 @@ fn fetch_user_public(conn: &rusqlite::Connection, user_id: i64) -> Result<UserPu
 }
 
 #[tauri::command]
-fn register_user(state: State<DbState>, username: String, password: String) -> Result<UserPublic, String> {
+fn register_user(
+    state: State<DbState>,
+    username: String,
+    password: String,
+) -> Result<UserPublic, String> {
     if username.trim().is_empty() || password.trim().is_empty() {
         return Err("Username and password are required".to_string());
     }
@@ -505,7 +514,9 @@ fn get_user_profile(state: State<DbState>) -> Result<UserProfile, String> {
     }
 
     let mut stmt = conn
-        .prepare("SELECT user_id, name, university, avatar_path FROM user_profiles WHERE user_id = ?1")
+        .prepare(
+            "SELECT user_id, name, university, avatar_path FROM user_profiles WHERE user_id = ?1",
+        )
         .map_err(|e| e.to_string())?;
     let profile_result = stmt.query_row([user_id], |row| {
         Ok(UserProfile {
@@ -599,7 +610,7 @@ fn set_app_settings(state: State<DbState>, settings: AppSettings) -> Result<(), 
 fn get_repositories(state: State<DbState>) -> Result<Vec<Repository>, String> {
     let conn = state.conn.lock().unwrap();
     let mut stmt = conn
-        .prepare("SELECT id, name, code, semester, description FROM repositories")
+        .prepare("SELECT id, name, code, semester, description, credits, semester_id, manual_grade, status FROM repositories")
         .map_err(|e| e.to_string())?;
     let repositories = stmt
         .query_map([], |row| {
@@ -609,6 +620,10 @@ fn get_repositories(state: State<DbState>) -> Result<Vec<Repository>, String> {
                 code: row.get(2)?,
                 semester: row.get(3)?,
                 description: row.get(4)?,
+                credits: row.get(5)?,
+                semester_id: row.get(6)?,
+                manual_grade: row.get(7)?,
+                status: row.get(8)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -630,7 +645,7 @@ fn create_repository(
 ) -> Result<i64, String> {
     let conn = state.conn.lock().unwrap();
     conn.execute(
-        "INSERT INTO repositories (name, code, semester, description) VALUES (?1, ?2, ?3, ?4)",
+        "INSERT INTO repositories (name, code, semester, description, credits, status) VALUES (?1, ?2, ?3, ?4, 3.0, 'in_progress')",
         (&name, &code, &semester, &description),
     )
     .map_err(|e| e.to_string())?;
@@ -680,8 +695,8 @@ fn create_lecture(
     );
     let conn = state.conn.lock().unwrap();
     conn.execute(
-        "INSERT INTO lectures (repository_id, course_id, title, url, thumbnail) VALUES (?1, ?1, ?2, ?3, ?4)",
-        (&repository_id, &title, &url, &thumbnail),
+        "INSERT INTO lectures (repository_id, course_id, title, url, thumbnail) VALUES (?1, ?2, ?3, ?4, ?5)",
+        (&repository_id, &repository_id, &title, &url, &thumbnail),
     )
     .map_err(|e| e.to_string())?;
     Ok(conn.last_insert_rowid())
@@ -1034,6 +1049,53 @@ fn create_course(
     create_repository(state, name, code, semester, description)
 }
 
+// ---------- Enhanced Node System Commands ----------
+
+#[tauri::command]
+fn get_link_types_cmd(state: State<DbState>) -> Result<Vec<LinkType>, String> {
+    db::get_link_types(&state)
+}
+
+#[tauri::command]
+fn get_resource_metadata_cmd(
+    state: State<DbState>,
+    resource_id: i64,
+) -> Result<Option<ResourceMetadata>, String> {
+    db::get_resource_metadata(&state, resource_id)
+}
+
+#[tauri::command]
+fn update_resource_metadata_cmd(
+    state: State<DbState>,
+    meta: ResourceMetadata,
+) -> Result<(), String> {
+    db::update_resource_metadata(&state, meta)
+}
+
+#[tauri::command]
+fn create_link_v2_cmd(
+    state: State<DbState>,
+    source_id: i64,
+    target_id: i64,
+    type_id: Option<i64>,
+    strength: Option<f64>,
+    bidirectional: bool,
+) -> Result<i64, String> {
+    db::create_link_v2(
+        &state,
+        source_id,
+        target_id,
+        type_id,
+        strength,
+        bidirectional,
+    )
+}
+
+#[tauri::command]
+fn get_links_v2_cmd(state: State<DbState>) -> Result<Vec<LinkV2>, String> {
+    db::get_links_v2(&state)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1091,7 +1153,20 @@ pub fn run() {
             get_model_status,
             scan_local_models,
             chat_direct,
-            debug_db_schema
+            chat_direct,
+            debug_db_schema,
+            // Enhanced Node System
+            get_link_types_cmd,
+            get_resource_metadata_cmd,
+            update_resource_metadata_cmd,
+            create_link_v2_cmd,
+            get_links_v2_cmd,
+            // Grades
+            grades::get_semesters,
+            grades::create_semester,
+            grades::delete_semester,
+            grades::update_course_grade_details,
+            grades::get_gpa_summary
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

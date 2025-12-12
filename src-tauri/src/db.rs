@@ -4,6 +4,35 @@ use std::fs;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LinkType {
+    pub id: i64,
+    pub name: String,
+    pub color: String,
+    pub stroke_style: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ResourceMetadata {
+    pub resource_id: i64,
+    pub importance: i32,
+    pub status: String,
+    pub difficulty: String,
+    pub time_estimate: i32,
+    pub last_reviewed_at: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LinkV2 {
+    pub id: i64,
+    pub source_id: i64,
+    pub target_id: i64,
+    pub type_id: Option<i64>,
+    pub strength: f64,
+    pub bidirectional: bool,
+    pub created_at: Option<String>,
+}
+
 pub struct DbState {
     pub conn: Mutex<Connection>,
 }
@@ -46,9 +75,10 @@ pub fn init_db(app_handle: &AppHandle) -> Result<Connection> {
             "0005_fix_missing_repository_columns",
             include_str!("../migrations/0005_fix_missing_repository_columns.sql"),
         ),
+        ("0006_auth", include_str!("../migrations/0006_auth.sql")),
         (
-            "0006_auth",
-            include_str!("../migrations/0006_auth.sql"),
+            "0007_node_system_enhancements",
+            include_str!("../migrations/0007_node_system_enhancements.sql"),
         ),
     ];
 
@@ -199,4 +229,127 @@ pub fn delete_planner_event(state: &State<DbState>, id: i64) -> Result<(), Strin
     conn.execute("DELETE FROM planner_events WHERE id = ?1", [&id])
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+// ---------- Enhanced Node System CRUD ----------
+
+pub fn get_link_types(state: &State<DbState>) -> Result<Vec<LinkType>, String> {
+    let conn = state.conn.lock().unwrap();
+    let mut stmt = conn
+        .prepare("SELECT id, name, color, stroke_style FROM link_types")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(LinkType {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                color: row.get(2)?,
+                stroke_style: row.get(3)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut result = Vec::new();
+    for r in rows {
+        result.push(r.map_err(|e| e.to_string())?);
+    }
+    Ok(result)
+}
+
+pub fn get_resource_metadata(
+    state: &State<DbState>,
+    resource_id: i64,
+) -> Result<Option<ResourceMetadata>, String> {
+    let conn = state.conn.lock().unwrap();
+    let mut stmt = conn.prepare("SELECT resource_id, importance, status, difficulty, time_estimate, last_reviewed_at FROM resource_metadata WHERE resource_id = ?1").map_err(|e| e.to_string())?;
+
+    let mut rows = stmt
+        .query_map([resource_id], |row| {
+            Ok(ResourceMetadata {
+                resource_id: row.get(0)?,
+                importance: row.get(1)?,
+                status: row.get(2)?,
+                difficulty: row.get(3)?,
+                time_estimate: row.get(4)?,
+                last_reviewed_at: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    if let Some(row) = rows.next() {
+        Ok(Some(row.map_err(|e| e.to_string())?))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn update_resource_metadata(
+    state: &State<DbState>,
+    meta: ResourceMetadata,
+) -> Result<(), String> {
+    let conn = state.conn.lock().unwrap();
+    conn.execute(
+        "INSERT OR REPLACE INTO resource_metadata (resource_id, importance, status, difficulty, time_estimate, last_reviewed_at) 
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        (
+            &meta.resource_id,
+            &meta.importance,
+            &meta.status,
+            &meta.difficulty,
+            &meta.time_estimate,
+            &meta.last_reviewed_at,
+        ),
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+pub fn create_link_v2(
+    state: &State<DbState>,
+    source_id: i64,
+    target_id: i64,
+    type_id: Option<i64>,
+    strength: Option<f64>,
+    bidirectional: bool,
+) -> Result<i64, String> {
+    let conn = state.conn.lock().unwrap();
+    let strength_val = strength.unwrap_or(1.0);
+    conn.execute(
+        "INSERT INTO resource_links_v2 (source_id, target_id, type_id, strength, bidirectional) VALUES (?1, ?2, ?3, ?4, ?5)",
+        (
+            &source_id,
+            &target_id,
+            &type_id,
+            &strength_val,
+            &bidirectional, // sqlite supports bool binding often, or use 0/1 if issue arises but rusqlite handles bool usually
+        ),
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(conn.last_insert_rowid())
+}
+
+pub fn get_links_v2(state: &State<DbState>) -> Result<Vec<LinkV2>, String> {
+    let conn = state.conn.lock().unwrap();
+    let mut stmt = conn
+        .prepare("SELECT id, source_id, target_id, type_id, strength, bidirectional, created_at FROM resource_links_v2")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(LinkV2 {
+                id: row.get(0)?,
+                source_id: row.get(1)?,
+                target_id: row.get(2)?,
+                type_id: row.get(3)?,
+                strength: row.get(4)?,
+                bidirectional: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut result = Vec::new();
+    for r in rows {
+        result.push(r.map_err(|e| e.to_string())?);
+    }
+    Ok(result)
 }

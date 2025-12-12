@@ -86,7 +86,7 @@ export function YouTubeLinks({ repository, onBack }: YouTubeLinksProps) {
 
         try {
             await invoke('create_lecture', {
-                repositoryId,
+                repositoryId: repositoryId,
                 title: newVideoTitle,
                 url: newVideoUrl,
                 thumbnail: thumbnail || undefined

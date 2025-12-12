@@ -181,7 +181,7 @@ export function RepositoryDetail({ repository, onBack }: RepositoryDetailProps) 
 
         try {
             await invoke('create_resource', {
-                repository_id: repository.id,
+                repositoryId: repository.id,
                 title: newLectureTitle,
                 type: 'video', // Unified type
                 path: newLectureUrl,
@@ -211,7 +211,7 @@ export function RepositoryDetail({ repository, onBack }: RepositoryDetailProps) 
 
             if (selected && typeof selected === 'string') {
                 await invoke('import_resource', {
-                    repository_id: repository.id,
+                    repositoryId: repository.id,
                     filePath: selected
                 });
                 loadResources();
@@ -228,7 +228,7 @@ export function RepositoryDetail({ repository, onBack }: RepositoryDetailProps) 
         if (!noteContent) { alert("Empty note!"); return; }
         try {
             await invoke('process_text_to_nodes', {
-                repository_id: repository.id,
+                repositoryId: repository.id,
                 text: noteContent
             });
             setNoteContent('');
@@ -333,9 +333,9 @@ export function RepositoryDetail({ repository, onBack }: RepositoryDetailProps) 
                         </div>
                         <div className="h-6 w-px bg-border" />
                         <div className="flex items-center gap-2">
-                            <button 
+                            <button
                                 onClick={() => setActiveView('videos')}
-                                className="px-4 py-2 rounded-xl border border-border hover:bg-white/5 transition-colors text-text-primary flex items-center gap-2" 
+                                className="px-4 py-2 rounded-xl border border-border hover:bg-white/5 transition-colors text-text-primary flex items-center gap-2"
                                 title="YouTube Videos"
                             >
                                 <Video size={18} />
@@ -383,8 +383,8 @@ export function RepositoryDetail({ repository, onBack }: RepositoryDetailProps) 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20">
                                 {allItems.map(item => (
                                     <div key={item.id} className="group rounded-2xl overflow-hidden cursor-pointer flex flex-col relative border border-border/50 bg-bg-surface/30 hover:bg-bg-surface hover:border-accent/40 hover:shadow-xl hover:shadow-accent/5 transition-all duration-300 transform hover:-translate-y-1">
-                                        <div 
-                                            className="aspect-video bg-black/40 relative flex items-center justify-center overflow-hidden" 
+                                        <div
+                                            className="aspect-video bg-black/40 relative flex items-center justify-center overflow-hidden"
                                             onClick={() => {
                                                 if (item.type === 'note') {
                                                     const noteResource = resources.find(r => r.id === item.dbId);
@@ -404,12 +404,12 @@ export function RepositoryDetail({ repository, onBack }: RepositoryDetailProps) 
                                             {/* Action Buttons */}
                                             <div className="absolute top-3 right-3 flex gap-2 z-10">
                                                 {item.type === 'note' && (
-                                                    <button 
+                                                    <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             const noteResource = resources.find(r => r.id === item.dbId);
                                                             if (noteResource) setEditingNote(noteResource);
-                                                        }} 
+                                                        }}
                                                         className="p-2 rounded-xl bg-black/60 text-white/70 hover:text-accent hover:bg-black/80 transition-all backdrop-blur-sm opacity-0 group-hover:opacity-100"
                                                         title="Edit Note"
                                                     >
