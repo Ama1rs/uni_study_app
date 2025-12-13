@@ -80,6 +80,14 @@ pub fn init_db(app_handle: &AppHandle) -> Result<Connection> {
             "0007_node_system_enhancements",
             include_str!("../migrations/0007_node_system_enhancements.sql"),
         ),
+        (
+            "0008_grades_projection",
+            include_str!("../migrations/0008_grades_projection.sql"),
+        ),
+        (
+            "0009_add_tasks",
+            include_str!("../migrations/0009_add_tasks.sql"),
+        ),
     ];
 
     for (version, sql) in migrations {
@@ -227,6 +235,66 @@ pub fn get_planner_events(
 pub fn delete_planner_event(state: &State<DbState>, id: i64) -> Result<(), String> {
     let conn = state.conn.lock().unwrap();
     conn.execute("DELETE FROM planner_events WHERE id = ?1", [&id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+// ---------- Tasks CRUD ----------
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Task {
+    pub id: i64,
+    pub title: String,
+    pub completed: bool,
+    pub created_at: String,
+}
+
+pub fn create_task(state: &State<DbState>, title: String) -> Result<i64, String> {
+    let conn = state.conn.lock().unwrap();
+    conn.execute(
+        "INSERT INTO tasks (title, completed) VALUES (?1, 0)",
+        [&title],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(conn.last_insert_rowid())
+}
+
+pub fn get_tasks(state: &State<DbState>) -> Result<Vec<Task>, String> {
+    let conn = state.conn.lock().unwrap();
+    let mut stmt = conn
+        .prepare("SELECT id, title, completed, created_at FROM tasks ORDER BY created_at DESC")
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(Task {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                completed: row.get(2)?,
+                created_at: row.get(3)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut result = Vec::new();
+    for r in rows {
+        result.push(r.map_err(|e| e.to_string())?);
+    }
+    Ok(result)
+}
+
+pub fn update_task_status(state: &State<DbState>, id: i64, completed: bool) -> Result<(), String> {
+    let conn = state.conn.lock().unwrap();
+    conn.execute(
+        "UPDATE tasks SET completed = ?1 WHERE id = ?2",
+        rusqlite::params![completed, id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+pub fn delete_task(state: &State<DbState>, id: i64) -> Result<(), String> {
+    let conn = state.conn.lock().unwrap();
+    conn.execute("DELETE FROM tasks WHERE id = ?1", [&id])
         .map_err(|e| e.to_string())?;
     Ok(())
 }

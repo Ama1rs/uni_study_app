@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { CheckCircle2, Circle, Plus, Calendar as CalendarIcon, PanelRightClose } from 'lucide-react';
+import { CheckCircle2, Circle, Plus, Calendar as CalendarIcon, PanelRightClose, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useUserProfile } from '../contexts/UserProfileContext';
 
 interface Task {
-    id: string;
-    text: string;
+    id: number;
+    title: string;
     completed: boolean;
+    created_at?: string;
 }
 
 interface PlannerEvent {
@@ -19,12 +20,10 @@ interface PlannerEvent {
 
 export function TaskPane({ onClose }: { onClose?: () => void }) {
     const { profile } = useUserProfile();
-    const [tasks, setTasks] = useState<Task[]>([
-        { id: '1', text: 'Finish Methodology section', completed: false },
-        { id: '2', text: 'Review research papers (2/3)', completed: true },
-        { id: '3', text: 'Send email to advisor', completed: false },
-    ]);
+    const [tasks, setTasks] = useState<Task[]>([]);
     const [events, setEvents] = useState<PlannerEvent[]>([]);
+    const [newTaskTitle, setNewTaskTitle] = useState('');
+    const [isAdding, setIsAdding] = useState(false);
 
     const currentHour = new Date().getHours();
     const greeting = currentHour < 12 ? 'Good morning' : currentHour < 18 ? 'Good afternoon' : 'Good evening';
@@ -32,7 +31,17 @@ export function TaskPane({ onClose }: { onClose?: () => void }) {
 
     useEffect(() => {
         loadEvents();
+        loadTasks();
     }, []);
+
+    async function loadTasks() {
+        try {
+            const res = await invoke<Task[]>('get_tasks');
+            setTasks(res);
+        } catch (e) {
+            console.error("Failed to load tasks:", e);
+        }
+    }
 
     async function loadEvents() {
         const now = new Date();
@@ -46,11 +55,44 @@ export function TaskPane({ onClose }: { onClose?: () => void }) {
         } catch (e) { console.error(e); }
     }
 
-    const toggleTask = (id: string) => {
-        setTasks(tasks.map(t =>
-            t.id === id ? { ...t, completed: !t.completed } : t
-        ));
+    async function toggleTask(id: number, currentStatus: boolean) {
+        try {
+            // Optimistic update
+            setTasks(tasks.map(t => t.id === id ? { ...t, completed: !currentStatus } : t));
+            await invoke('update_task_status', { id, completed: !currentStatus });
+        } catch (e) {
+            console.error(e);
+            loadTasks(); // Revert on error
+        }
     };
+
+    async function addTask(e: React.FormEvent) {
+        e.preventDefault();
+        if (!newTaskTitle.trim()) {
+            setIsAdding(false);
+            return;
+        }
+
+        try {
+            await invoke('create_task', { title: newTaskTitle });
+            setNewTaskTitle('');
+            setIsAdding(false);
+            loadTasks();
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function deleteTask(e: React.MouseEvent, id: number) {
+        e.stopPropagation();
+        if (!confirm('Delete this goal?')) return;
+        try {
+            await invoke('delete_task', { id });
+            loadTasks();
+        } catch (e) {
+            console.error(e);
+        }
+    }
 
     return (
         <div className="w-80 h-full flex flex-col glass-card rounded-xl mr-2 my-4 overflow-hidden">
@@ -85,17 +127,34 @@ export function TaskPane({ onClose }: { onClose?: () => void }) {
                 <div className="mb-8">
                     <div className="flex items-center justify-between mb-3">
                         <h3 className="text-sm font-semibold text-text-primary">Daily Goals</h3>
-                        <button className="text-accent hover:bg-accent/10 p-1 rounded transition-colors">
+                        <button
+                            onClick={() => setIsAdding(true)}
+                            className="text-accent hover:bg-accent/10 p-1 rounded transition-colors"
+                        >
                             <Plus size={14} />
                         </button>
                     </div>
 
                     <div className="space-y-2">
+                        {isAdding && (
+                            <form onSubmit={addTask} className="mb-2">
+                                <input
+                                    autoFocus
+                                    className="w-full bg-bg-surface border border-accent rounded px-2 py-1 text-sm outline-none text-text-primary"
+                                    placeholder="Enter goal..."
+                                    value={newTaskTitle}
+                                    onChange={e => setNewTaskTitle(e.target.value)}
+                                    onBlur={() => {
+                                        if (!newTaskTitle.trim()) setIsAdding(false);
+                                    }}
+                                />
+                            </form>
+                        )}
                         {tasks.map(task => (
                             <div
                                 key={task.id}
-                                className="flex items-start gap-3 group cursor-pointer select-none"
-                                onClick={() => toggleTask(task.id)}
+                                className="flex items-start gap-3 group cursor-pointer select-none relative"
+                                onClick={() => toggleTask(task.id, task.completed)}
                             >
                                 <button className={cn(
                                     "mt-0.5 transition-colors",
@@ -104,13 +163,22 @@ export function TaskPane({ onClose }: { onClose?: () => void }) {
                                     {task.completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
                                 </button>
                                 <span className={cn(
-                                    "text-sm transition-all",
+                                    "text-sm transition-all flex-1 break-words",
                                     task.completed ? "text-text-tertiary line-through" : "text-text-secondary group-hover:text-text-primary"
                                 )}>
-                                    {task.text}
+                                    {task.title}
                                 </span>
+                                <button
+                                    onClick={(e) => deleteTask(e, task.id)}
+                                    className="absolute right-0 top-0 p-1 text-text-tertiary hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
                             </div>
                         ))}
+                        {!isAdding && tasks.length === 0 && (
+                            <p className="text-xs text-text-tertiary text-center py-2">No goals set for today.</p>
+                        )}
                     </div>
                 </div>
 

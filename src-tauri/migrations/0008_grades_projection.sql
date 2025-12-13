@@ -15,5 +15,6 @@ ALTER TABLE repositories ADD COLUMN semester_id INTEGER REFERENCES semesters(id)
 ALTER TABLE repositories ADD COLUMN manual_grade REAL; -- Final grade point (e.g. 4.0, 9.5) override or distinct from calculated
 ALTER TABLE repositories ADD COLUMN status TEXT DEFAULT 'in_progress'; -- 'completed', 'in_progress', 'planned'
 
--- Add target_cgpa to user_profile
-ALTER TABLE user_profile ADD COLUMN target_cgpa REAL;
+-- Add target_cgpa and horizon to user_profiles
+ALTER TABLE user_profiles ADD COLUMN target_cgpa REAL;
+ALTER TABLE user_profiles ADD COLUMN horizon INTEGER;

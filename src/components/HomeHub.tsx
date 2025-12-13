@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Search, FileText, Plus, BookOpen, Clock, Zap, Brain } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
+import { Search, FileText, Plus, BookOpen } from 'lucide-react';
 import { useUserProfile } from '../contexts/UserProfileContext';
 
 interface GraphNode {
@@ -14,22 +15,26 @@ interface GraphLink {
     target: string;
 }
 
+interface Resource {
+    id: number;
+    repository_id?: number;
+    title: string;
+    type: string;
+    path?: string;
+    created_at?: string;
+}
+
 export function HomeHub({ onOpenFile }: { onOpenFile: (path: string) => void }) {
     const [scratchpad, setScratchpad] = useState(() => localStorage.getItem('daily_scratchpad') || '');
     const [searchQuery, setSearchQuery] = useState('');
+    const [resources, setResources] = useState<Resource[]>([]);
+    const [searchResults, setSearchResults] = useState<Resource[]>([]);
     const { profile } = useUserProfile();
 
     // Get first name for greeting
-    const userName = profile.name.split(' ')[0];
+    const userName = profile?.name?.split(' ')[0] || 'User';
 
-    // Mock metrics
-    const metrics = {
-        streak: 12,
-        focusHours: 4.5,
-        tasksDone: 8
-    };
-
-    // Simple graph data
+    // Simple graph data (Decoration)
     const nodes: GraphNode[] = [
         { id: '1', name: 'Calculus', x: 20, y: 30 },
         { id: '2', name: 'Derivatives', x: 35, y: 20 },
@@ -48,18 +53,56 @@ export function HomeHub({ onOpenFile }: { onOpenFile: (path: string) => void }) 
         { source: '6', target: '7' },
     ];
 
-    // Mock recent files
-    const recentFiles = [
-        { id: 1, name: 'Project Proposal.md', path: '/docs/proposal.md', time: '2h ago' },
-        { id: 2, name: 'Calculus Notes.md', path: '/math/calc.md', time: '5h ago' },
-        { id: 3, name: 'History Essay.md', path: '/history/essay.md', time: '1d ago' },
-    ];
-
     useEffect(() => {
         localStorage.setItem('daily_scratchpad', scratchpad);
     }, [scratchpad]);
 
+    useEffect(() => {
+        loadResources();
+    }, []);
+
+    useEffect(() => {
+        if (searchQuery.trim()) {
+            const lower = searchQuery.toLowerCase();
+            const results = resources.filter(r =>
+                r.title.toLowerCase().includes(lower) ||
+                r.type.toLowerCase().includes(lower)
+            ).slice(0, 5);
+            setSearchResults(results);
+        } else {
+            setSearchResults([]);
+        }
+    }, [searchQuery, resources]);
+
+    async function loadResources() {
+        try {
+            const res = await invoke<Resource[]>('get_resources', { repositoryId: null });
+            setResources(res);
+        } catch (e) {
+            console.error("Failed to load resources:", e);
+        }
+    }
+
+    const recentFiles = resources.slice(0, 5); // Already sorted by DB desc
+
     const getNodeById = (id: string) => nodes.find(n => n.id === id);
+
+    async function handleFileClick(res: Resource) {
+        if (res.path) {
+            onOpenFile(res.path);
+        } else {
+            // It might be a note without a file path? 
+            // Currently onOpenFile expects a path. 
+            // If it's a pure DB note, we might need a way to open it.
+            // For now, let's assume we pass the virtual ID or handle it if onOpenFile supports it.
+            // But looking at App.tsx, onOpenFile just sets activeFile string.
+            // If we want to open a note, we might need to handle it differently.
+            // However, existing recent files had paths. 
+            // Let's pass the ID if path is missing? No, EditorPane needs content.
+            // For now, only open items with paths.
+            if (res.path) onOpenFile(res.path);
+        }
+    }
 
     return (
         <div className="relative w-full h-full overflow-hidden bg-bg-primary">
@@ -107,25 +150,19 @@ export function HomeHub({ onOpenFile }: { onOpenFile: (path: string) => void }) 
             </svg>
 
             {/* 2. The HUD (Foreground) */}
-            <div className="relative z-10 w-full h-full p-8 flex flex-col pointer-events-none">
+            <div className="relative z-10 w-full h-full p-8 flex flex-col">
 
                 {/* Top-Left: Pilot's Console */}
-                <div className="pointer-events-auto w-96 mb-12">
+                <div className="pointer-events-auto w-full max-w-2xl mb-12">
                     <h1 className="text-3xl font-bold text-text-primary mb-1">
                         {new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening'}, {userName}.
                     </h1>
                     <p className="text-text-secondary text-sm mb-6">Ready to expand your knowledge?</p>
-
-                    <div className="flex gap-3">
-                        <MetricCard icon={Zap} label="Streak" value={`${metrics.streak}d`} />
-                        <MetricCard icon={Clock} label="Focus" value={`${metrics.focusHours}h`} />
-                        <MetricCard icon={Brain} label="Tasks" value={`${metrics.tasksDone}`} />
-                    </div>
                 </div>
 
                 {/* Center: Omni-Search */}
-                <div className="pointer-events-auto max-w-xl w-full mx-auto mb-12">
-                    <div className="flex items-center bg-bg-surface/80 backdrop-blur-md border border-border rounded-lg px-4 py-2">
+                <div className="pointer-events-auto max-w-xl w-full mx-auto mb-4 relative z-50">
+                    <div className="flex items-center bg-bg-surface/80 backdrop-blur-md border border-border rounded-lg px-4 py-2 shadow-lg">
                         <Search className="text-text-tertiary mr-3" size={16} />
                         <input
                             type="text"
@@ -136,29 +173,56 @@ export function HomeHub({ onOpenFile }: { onOpenFile: (path: string) => void }) 
                         />
                         <span className="text-xs text-text-tertiary font-mono border border-border px-1.5 py-0.5 rounded">⌘K</span>
                     </div>
+
+                    {/* Search Results Dropdown */}
+                    {searchQuery.trim() && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-bg-surface border border-border rounded-lg shadow-xl overflow-hidden">
+                            {searchResults.length > 0 ? (
+                                searchResults.map(res => (
+                                    <button
+                                        key={res.id}
+                                        onClick={() => handleFileClick(res)}
+                                        className="w-full text-left px-4 py-3 hover:bg-white/5 flex items-center gap-3 transition-colors border-b border-white/5 last:border-0"
+                                    >
+                                        <FileText size={14} className="text-text-secondary" />
+                                        <div>
+                                            <p className="text-sm text-text-primary font-medium">{res.title}</p>
+                                            <p className="text-xs text-text-tertiary uppercase">{res.type}</p>
+                                        </div>
+                                    </button>
+                                ))
+                            ) : (
+                                <div className="px-4 py-3 text-sm text-text-tertiary text-center">No results found</div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Bottom Section: Split View */}
                 <div className="flex-1 flex gap-6 min-h-0">
 
-                    {/* Bottom-Left: Project Dock */}
+                    {/* Bottom-Left: Recent Dock */}
                     <div className="pointer-events-auto w-80 flex flex-col gap-4">
                         <div className="glass-card p-4 rounded-lg flex-1 flex flex-col min-h-0">
                             <h3 className="text-xs font-medium text-text-tertiary mb-3 uppercase tracking-wider font-mono">Recent</h3>
                             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1">
-                                {recentFiles.map(file => (
-                                    <button
-                                        key={file.id}
-                                        onClick={() => onOpenFile(file.path)}
-                                        className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-bg-hover transition-colors group text-left"
-                                    >
-                                        <FileText size={14} className="text-text-tertiary group-hover:text-accent" />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm text-text-secondary group-hover:text-text-primary truncate font-mono">{file.name}</p>
-                                        </div>
-                                        <span className="text-xs text-text-tertiary">{file.time}</span>
-                                    </button>
-                                ))}
+                                {recentFiles.length === 0 ? (
+                                    <p className="text-xs text-text-tertiary text-center mt-4">No recent files</p>
+                                ) : (
+                                    recentFiles.map(file => (
+                                        <button
+                                            key={file.id}
+                                            onClick={() => handleFileClick(file)}
+                                            className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-bg-hover transition-colors group text-left"
+                                        >
+                                            <FileText size={14} className="text-text-tertiary group-hover:text-accent" />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm text-text-secondary group-hover:text-text-primary truncate font-mono">{file.title}</p>
+                                            </div>
+                                            {/* <span className="text-xs text-text-tertiary">{file.created_at}</span> */}
+                                        </button>
+                                    ))
+                                )}
                             </div>
 
                             <div className="mt-3 pt-3 border-t border-border grid grid-cols-2 gap-2">
@@ -189,18 +253,6 @@ export function HomeHub({ onOpenFile }: { onOpenFile: (path: string) => void }) 
     );
 }
 
-function MetricCard({ icon: Icon, label, value }: { icon: any, label: string, value: string }) {
-    return (
-        <div className="glass-card px-3 py-2 rounded-lg flex items-center gap-2">
-            <Icon size={14} className="text-accent" />
-            <div>
-                <p className="text-xs text-text-tertiary font-mono">{label}</p>
-                <p className="text-sm font-medium text-text-primary">{value}</p>
-            </div>
-        </div>
-    );
-}
-
 function ActionButton({ icon: Icon, label }: { icon: any, label: string }) {
     return (
         <button className="flex items-center justify-center gap-2 p-2 rounded-md border border-border hover:bg-bg-hover transition-colors text-xs text-text-secondary hover:text-text-primary font-mono">
@@ -209,3 +261,4 @@ function ActionButton({ icon: Icon, label }: { icon: any, label: string }) {
         </button>
     );
 }
+
