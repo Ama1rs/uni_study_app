@@ -248,6 +248,7 @@ pub struct Task {
     pub created_at: String,
 }
 
+#[allow(dead_code)]
 pub fn create_task(state: &State<DbState>, title: String) -> Result<i64, String> {
     let conn = state.conn.lock().unwrap();
     conn.execute(
@@ -258,6 +259,7 @@ pub fn create_task(state: &State<DbState>, title: String) -> Result<i64, String>
     Ok(conn.last_insert_rowid())
 }
 
+#[allow(dead_code)]
 pub fn get_tasks(state: &State<DbState>) -> Result<Vec<Task>, String> {
     let conn = state.conn.lock().unwrap();
     let mut stmt = conn
@@ -282,6 +284,7 @@ pub fn get_tasks(state: &State<DbState>) -> Result<Vec<Task>, String> {
     Ok(result)
 }
 
+#[allow(dead_code)]
 pub fn update_task_status(state: &State<DbState>, id: i64, completed: bool) -> Result<(), String> {
     let conn = state.conn.lock().unwrap();
     conn.execute(
@@ -292,6 +295,7 @@ pub fn update_task_status(state: &State<DbState>, id: i64, completed: bool) -> R
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn delete_task(state: &State<DbState>, id: i64) -> Result<(), String> {
     let conn = state.conn.lock().unwrap();
     conn.execute("DELETE FROM tasks WHERE id = ?1", [&id])

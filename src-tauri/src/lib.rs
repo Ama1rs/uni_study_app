@@ -78,7 +78,7 @@ pub struct Lecture {
 
 // Re-export Link from db
 pub use db::Link;
-pub use db::{LinkType, LinkV2, PlannerEvent, ResourceMetadata};
+pub use db::{LinkType, LinkV2, PlannerEvent, ResourceMetadata, Task};
 
 fn hash_password(password: &str) -> Result<String, String> {
     let salt = SaltString::generate(&mut OsRng);
@@ -848,6 +848,31 @@ fn delete_lecture(state: State<DbState>, id: i64) -> Result<(), String> {
     Ok(())
 }
 
+// ---------- Task Commands ----------
+#[tauri::command]
+fn create_task(state: State<DbState>, title: String) -> Result<i64, String> {
+    db::create_task(&state, title)
+}
+
+#[tauri::command]
+fn get_tasks(state: State<DbState>) -> Result<Vec<Task>, String> {
+    db::get_tasks(&state)
+}
+
+#[tauri::command]
+fn update_task_status(
+    state: State<DbState>,
+    id: i64,
+    completed: bool,
+) -> Result<(), String> {
+    db::update_task_status(&state, id, completed)
+}
+
+#[tauri::command]
+fn delete_task(state: State<DbState>, id: i64) -> Result<(), String> {
+    db::delete_task(&state, id)
+}
+
 // ---------- Planner Commands ----------
 #[tauri::command]
 fn create_planner_event(
@@ -1136,6 +1161,10 @@ pub fn run() {
             delete_lecture,
             delete_resource,
             update_resource,
+            create_task,
+            get_tasks,
+            update_task_status,
+            delete_task,
             create_planner_event,
             get_planner_events,
             delete_planner_event,
