@@ -26,6 +26,8 @@ interface CourseGradeDialogProps {
 export function CourseGradeDialog({ course, isOpen, onClose, onUpdate, scales }: CourseGradeDialogProps) {
     const [mode, setMode] = useState<'direct' | 'component'>('direct');
     const [manualGrade, setManualGrade] = useState<string>(course.manual_grade?.toString() || '');
+    const [convertedGrade, setConvertedGrade] = useState<number | null>(null);
+    const [isConverting, setIsConverting] = useState(false);
 
     // Component State
     const [configs, setConfigs] = useState<ComponentConfig[]>([]);
@@ -51,6 +53,43 @@ export function CourseGradeDialog({ course, isOpen, onClose, onUpdate, scales }:
             }
         }
     }, [isOpen, course]);
+
+    // Handle grade conversion in real-time
+    useEffect(() => {
+        const convertGrade = async () => {
+            if (!manualGrade || mode !== 'direct') {
+                setConvertedGrade(null);
+                return;
+            }
+
+            const gradeValue = parseFloat(manualGrade);
+            if (isNaN(gradeValue)) {
+                setConvertedGrade(null);
+                return;
+            }
+
+            try {
+                setIsConverting(true);
+                const scale = scales.find(s => s.id === (selectedScaleId || scales[0]?.id));
+                if (!scale) return;
+
+                const converted = await invoke<number>('convert_score_to_points', {
+                    score: gradeValue,
+                    scale_id: scale.id
+                });
+                setConvertedGrade(converted);
+            } catch (error) {
+                console.error('Conversion error:', error);
+                setConvertedGrade(null);
+            } finally {
+                setIsConverting(false);
+            }
+        };
+
+        // Debounce conversion calls
+        const timer = setTimeout(convertGrade, 300);
+        return () => clearTimeout(timer);
+    }, [manualGrade, selectedScaleId, mode, scales]);
 
     const addComponent = () => {
         setConfigs([...configs, { name: 'New Component', weight: 0.2 }]);
@@ -155,6 +194,37 @@ export function CourseGradeDialog({ course, isOpen, onClose, onUpdate, scales }:
                                 />
                                 <p className="text-[10px] text-text-tertiary mt-2">Enter the final point value directly. Useful for historical data or simple grading.</p>
                             </div>
+
+                            {/* Grade Conversion Display */}
+                            {manualGrade && (
+                                <div className="p-4 bg-accent/10 rounded-lg border border-accent/30">
+                                    <p className="text-xs text-text-tertiary font-mono uppercase mb-3">Grade Conversion</p>
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-text-secondary">Input Value:</span>
+                                            <span className="text-sm font-mono font-bold text-white">{manualGrade}</span>
+                                        </div>
+                                        {selectedScaleId && (
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-xs text-text-secondary">Scale:</span>
+                                                <span className="text-xs font-mono text-accent">{scales.find(s => s.id === selectedScaleId)?.name}</span>
+                                            </div>
+                                        )}
+                                        {isConverting && (
+                                            <div className="flex justify-between items-center py-1">
+                                                <span className="text-xs text-text-secondary">Converted Value:</span>
+                                                <span className="text-xs font-mono text-text-tertiary animate-pulse">Converting...</span>
+                                            </div>
+                                        )}
+                                        {!isConverting && convertedGrade !== null && (
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-xs text-text-secondary">Converted to 4.0 Scale:</span>
+                                                <span className="text-lg font-mono font-bold text-accent">{convertedGrade.toFixed(2)}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="space-y-4">

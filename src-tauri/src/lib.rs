@@ -1,5 +1,7 @@
 mod db;
 mod grades;
+mod conversion;
+mod projection;
 mod inference;
 mod ollama;
 
@@ -65,6 +67,9 @@ pub struct Repository {
     pub semester_id: Option<i64>,
     pub manual_grade: Option<f64>,
     pub status: String,
+    pub component_config: Option<String>,
+    pub component_scores: Option<String>,
+    pub grading_scale_id: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -79,6 +84,7 @@ pub struct Lecture {
 // Re-export Link from db
 pub use db::Link;
 pub use db::{LinkType, LinkV2, PlannerEvent, ResourceMetadata, Task};
+pub use conversion::{convert_numeric_score, convert_letter_grade, convert_course_score, calculate_weighted_score, get_letter_for_points};
 
 fn hash_password(password: &str) -> Result<String, String> {
     let salt = SaltString::generate(&mut OsRng);
@@ -610,7 +616,7 @@ fn set_app_settings(state: State<DbState>, settings: AppSettings) -> Result<(), 
 fn get_repositories(state: State<DbState>) -> Result<Vec<Repository>, String> {
     let conn = state.conn.lock().unwrap();
     let mut stmt = conn
-        .prepare("SELECT id, name, code, semester, description, credits, semester_id, manual_grade, status FROM repositories")
+        .prepare("SELECT id, name, code, semester, description, credits, semester_id, manual_grade, status, component_config, component_scores, grading_scale_id FROM repositories")
         .map_err(|e| e.to_string())?;
     let repositories = stmt
         .query_map([], |row| {
@@ -624,6 +630,9 @@ fn get_repositories(state: State<DbState>) -> Result<Vec<Repository>, String> {
                 semester_id: row.get(6)?,
                 manual_grade: row.get(7)?,
                 status: row.get(8)?,
+                component_config: row.get(9)?,
+                component_scores: row.get(10)?,
+                grading_scale_id: row.get(11)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -1190,12 +1199,35 @@ pub fn run() {
             update_resource_metadata_cmd,
             create_link_v2_cmd,
             get_links_v2_cmd,
-            // Grades
+            // Grades - Data Access Layer
             grades::get_semesters,
             grades::create_semester,
             grades::delete_semester,
             grades::update_course_grade_details,
-            grades::get_gpa_summary
+            grades::get_gpa_summary,
+            // Grading Scales Management
+            grades::get_grading_scales,
+            grades::get_grading_scale,
+            grades::create_grading_scale,
+            // Programs Management
+            grades::get_programs,
+            grades::get_program,
+            grades::create_program,
+            grades::set_user_program,
+            grades::get_user_program,
+            // Projection Settings
+            grades::save_projection_settings,
+            grades::get_projection_settings,
+            // Conversion Functions
+            grades::convert_score_to_points,
+            grades::convert_letter_to_points,
+            grades::calculate_weighted_component_score,
+            grades::convert_course_grade_to_points,
+            // Projection Functions
+            grades::project_grades,
+            grades::get_semester_targets,
+            grades::get_course_targets,
+            projection::estimate_study_hours
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

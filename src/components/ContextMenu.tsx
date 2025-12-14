@@ -1,4 +1,3 @@
-import { Edit, Trash2, Link } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
 export interface ContextMenuAction {

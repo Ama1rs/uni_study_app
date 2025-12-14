@@ -88,6 +88,10 @@ pub fn init_db(app_handle: &AppHandle) -> Result<Connection> {
             "0009_add_tasks",
             include_str!("../migrations/0009_add_tasks.sql"),
         ),
+        (
+            "0010_flexible_grading_schema",
+            include_str!("../migrations/0010_flexible_grading_schema.sql"),
+        ),
     ];
 
     for (version, sql) in migrations {

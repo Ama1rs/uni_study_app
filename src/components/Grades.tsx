@@ -97,7 +97,7 @@ export function Grades() {
 
     // Helper to get grade color
     const getGradeColor = (grade?: number | null) => {
-        if (grade === null || grade === undefined) return "bg-gray-500/20 text-gray-400";
+        if (grade === null || grade === undefined || isNaN(grade)) return "bg-gray-500/20 text-gray-400";
         if (grade >= 9.0 || grade >= 3.7) return "bg-green-500/20 text-green-400"; // Generic heuristic for 10/4
         if (grade >= 7.0 || grade >= 3.0) return "bg-blue-500/20 text-blue-400";
         if (grade >= 5.0 || grade >= 2.0) return "bg-yellow-500/20 text-yellow-400";
@@ -105,7 +105,7 @@ export function Grades() {
     };
 
     const getGradeDisplay = (grade?: number | null) => {
-        if (grade === null || grade === undefined) return "-";
+        if (grade === null || grade === undefined || isNaN(grade)) return "-";
         return grade.toFixed(1); // Just show number for now, letter mapping requires scale context which is complex here
     };
 
@@ -123,13 +123,14 @@ export function Grades() {
     const pastSemesters = semesters.filter(s => s.id !== currentSemesterId);
 
     // Chart Data
+    const futureSemesters = projection && projection.credits_remaining > 0 ? Math.min(Math.ceil(projection.credits_remaining / 20), 4) : 0;
     const chartData = [
-        ...summary.semester_gpas.map((g) => ({ val: g.gpa, label: g.semester_name, isFuture: false })),
-        ...(projection && projection.credits_remaining > 0 ? Array.from({ length: Math.ceil(projection.credits_remaining / 20) }).map(() => ({ // Heuristic: 20 creds/sem
-            val: projection.required_future_gpa,
+        ...summary.semester_gpas.map((g) => ({ val: isNaN(g.gpa) ? 0 : g.gpa, label: g.semester_name, isFuture: false })),
+        ...Array.from({ length: futureSemesters }).map(() => ({
+            val: projection && !isNaN(projection.required_future_gpa) ? projection.required_future_gpa : 0,
             label: `Future`,
             isFuture: true
-        })) : [])
+        }))
     ];
 
     const displayChart = chartData.length > 8 ? [...chartData.slice(0, 4), ...chartData.slice(-4)] : chartData;
@@ -182,7 +183,7 @@ export function Grades() {
                         </div>
                         <div>
                             <p className="text-xs text-text-tertiary font-mono uppercase tracking-wider">CGPA</p>
-                            <p className="text-xl font-medium text-text-primary font-mono">{summary.cgpa.toFixed(2)}</p>
+                            <p className="text-xl font-medium text-text-primary font-mono">{isNaN(summary.cgpa) ? '0.00' : summary.cgpa.toFixed(2)}</p>
                         </div>
                     </div>
                     <div className="glass-card px-4 py-3 rounded-lg flex items-center gap-3">
@@ -191,7 +192,7 @@ export function Grades() {
                         </div>
                         <div>
                             <p className="text-xs text-text-tertiary font-mono uppercase tracking-wider">Credits</p>
-                            <p className="text-xl font-medium text-text-primary font-mono">{summary.total_credits}</p>
+                            <p className="text-xl font-medium text-text-primary font-mono">{isNaN(summary.total_credits) ? 0 : summary.total_credits}</p>
                         </div>
                     </div>
 
@@ -204,7 +205,7 @@ export function Grades() {
                                 <p className="text-[10px] text-text-tertiary font-mono uppercase tracking-wider">Target</p>
                                 <input
                                     className="w-12 bg-transparent text-lg font-medium text-text-primary font-mono outline-none border-b border-transparent focus:border-purple-500/50 transition-colors"
-                                    defaultValue={projection?.target_cgpa || 9.0}
+                                    defaultValue={projection?.target_cgpa && !isNaN(projection.target_cgpa) ? projection.target_cgpa : 9.0}
                                     onBlur={(e) => {
                                         const val = parseFloat(e.target.value);
                                         if (!isNaN(val)) invoke('save_projection_settings', { target_cgpa: val, horizon: projection?.horizon });
@@ -224,7 +225,7 @@ export function Grades() {
                                 <div className="flex items-center gap-1">
                                     <input
                                         className="w-8 bg-transparent text-lg font-medium text-text-primary font-mono outline-none border-b border-transparent focus:border-purple-500/50 transition-colors"
-                                        defaultValue={projection?.credits_remaining ? Math.ceil(projection.credits_remaining / 20) : (160 / 20)} // Mock horizon calc
+                                        defaultValue={projection?.credits_remaining && !isNaN(projection.credits_remaining) ? Math.min(Math.ceil(projection.credits_remaining / 20), 20) : (160 / 20)} // Mock horizon calc
                                         onBlur={(e) => {
                                             const val = parseInt(e.target.value);
                                             // Backend uses 'horizon' as INTEGER (semesters? or credits? implementation plan said semesters, backend logic ignored it in calc actually? No it used horizon from DB)
@@ -243,7 +244,7 @@ export function Grades() {
                         <div className="text-right">
                             <p className="text-[10px] text-text-tertiary font-mono uppercase tracking-wider mb-0.5">Required Future GPA</p>
                             <div className="flex items-center gap-2 justify-end">
-                                {projection ? (
+                                {projection && !isNaN(projection.required_future_gpa) ? (
                                     <span className={cn("font-bold font-mono text-lg", projection.required_future_gpa > 10.0 ? "text-red-400" : "text-accent")}>
                                         {projection.required_future_gpa.toFixed(2)}
                                     </span>
@@ -413,7 +414,7 @@ export function Grades() {
                                                 {semGpa?.credits || 0}
                                             </div>
                                             <div className="col-span-3 text-right font-bold text-white font-mono text-xs">
-                                                {semGpa?.gpa.toFixed(2) || "0.00"}
+                                                {semGpa?.gpa && !isNaN(semGpa.gpa) ? semGpa.gpa.toFixed(2) : "0.00"}
                                             </div>
                                         </div>
                                     );
