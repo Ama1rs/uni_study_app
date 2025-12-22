@@ -29,4 +29,8 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  // Optimize for maximum refresh rate rendering
+  esbuild: {
+    target: "esnext",
+  },
 }));

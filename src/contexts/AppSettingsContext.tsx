@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
 interface AppSettings {
@@ -13,6 +13,7 @@ interface AppSettingsContextType {
     settings: AppSettings;
     toggleSidebar: () => void;
     updateSettings: (newSettings: Partial<AppSettings>) => Promise<void>;
+    refreshSettings: () => Promise<void>;
     isLoading: boolean;
 }
 
@@ -30,20 +31,21 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     const [settings, setSettings] = useState<AppSettings>(defaultSettings);
     const [isLoading, setIsLoading] = useState(true);
 
+    const refreshSettings = useCallback(async () => {
+        try {
+            const loadedSettings = await invoke<AppSettings>('get_app_settings');
+            setSettings(loadedSettings);
+        } catch (error) {
+            console.error('Failed to load settings:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
     // Load settings on mount
     useEffect(() => {
-        async function loadSettings() {
-            try {
-                const loadedSettings = await invoke<AppSettings>('get_app_settings');
-                setSettings(loadedSettings);
-            } catch (error) {
-                console.error('Failed to load settings:', error);
-            } finally {
-                setIsLoading(false);
-            }
-        }
-        loadSettings();
-    }, []);
+        refreshSettings();
+    }, [refreshSettings]);
 
     const updateSettings = async (newSettings: Partial<AppSettings>) => {
         const updated = { ...settings, ...newSettings };
@@ -60,7 +62,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <AppSettingsContext.Provider value={{ settings, toggleSidebar, updateSettings, isLoading }}>
+        <AppSettingsContext.Provider value={{ settings, toggleSidebar, updateSettings, refreshSettings, isLoading }}>
             {children}
         </AppSettingsContext.Provider>
     );

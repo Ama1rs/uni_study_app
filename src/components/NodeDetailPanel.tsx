@@ -63,7 +63,7 @@ export function NodeDetailPanel({ nodeId, title, type, onClose, onMetadataChange
     if (loading) return <div className="w-80 h-full border-l border-white/10 bg-black/40 backdrop-blur-md p-6 absolute right-0 top-0 z-20 flex items-center justify-center">Loading...</div>;
 
     return (
-        <div className="w-80 h-full border-l bg-bg-surface/95 backdrop-blur-xl p-6 absolute right-0 top-0 z-20 flex flex-col shadow-2xl transition-all" style={{ borderColor: 'var(--border)' }}>
+        <div className="w-80 h-full border-l bg-bg-surface p-6 absolute right-0 top-0 z-30 flex flex-col shadow-2xl transition-all" style={{ borderColor: 'var(--border)' }}>
             <div className="flex justify-between items-start mb-6">
                 <div>
                     <h2 className="text-xl font-bold text-text-primary leading-tight">{title}</h2>
@@ -104,8 +104,8 @@ export function NodeDetailPanel({ nodeId, title, type, onClose, onMetadataChange
                                 key={s}
                                 onClick={() => saveMetadata({ ...metadata, status: s })}
                                 className={`px-2 py-1.5 rounded-lg text-xs font-medium border transition-all ${metadata.status === s
-                                        ? s === 'mastered' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : s === 'reviewing' ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-gray-500/20 text-gray-400 border-gray-500/50'
-                                        : 'border-transparent hover:bg-white/5 text-text-tertiary'
+                                    ? s === 'mastered' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : s === 'reviewing' ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-gray-500/20 text-gray-400 border-gray-500/50'
+                                    : 'border-transparent hover:bg-white/5 text-text-tertiary'
                                     }`}
                             >
                                 {s.charAt(0).toUpperCase() + s.slice(1)}

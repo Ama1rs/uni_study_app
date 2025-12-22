@@ -1,4 +1,4 @@
-use crate::db::DbState;
+use crate::db_manager::DbState;
 
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -63,7 +63,8 @@ pub struct GradeSummary {
 
 #[tauri::command]
 pub fn get_semesters(state: State<DbState>) -> Result<Vec<Semester>, String> {
-    let conn = state.conn.lock().unwrap();
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
     let mut stmt = conn
         .prepare("SELECT id, name, start_date, end_date, planned_credits FROM semesters ORDER BY start_date DESC, created_at DESC")
         .map_err(|e| e.to_string())?;
@@ -95,7 +96,8 @@ pub fn create_semester(
     end_date: Option<String>,
     planned_credits: Option<f64>,
 ) -> Result<i64, String> {
-    let conn = state.conn.lock().unwrap();
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
     conn.execute(
         "INSERT INTO semesters (name, start_date, end_date, planned_credits) VALUES (?1, ?2, ?3, ?4)",
         (name, start_date, end_date, planned_credits.unwrap_or(0.0)),
@@ -106,7 +108,8 @@ pub fn create_semester(
 
 #[tauri::command]
 pub fn delete_semester(state: State<DbState>, id: i64) -> Result<(), String> {
-    let conn = state.conn.lock().unwrap();
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
     conn.execute("DELETE FROM semesters WHERE id = ?1", [id])
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -121,7 +124,8 @@ pub fn update_course_grade_details(
     manual_grade: Option<f64>,
     status: String,
 ) -> Result<(), String> {
-    let conn = state.conn.lock().unwrap();
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
     conn.execute(
         "UPDATE repositories SET credits = ?1, semester_id = ?2, manual_grade = ?3, status = ?4 WHERE id = ?5",
         (credits, semester_id, manual_grade, status, repository_id),
@@ -132,23 +136,61 @@ pub fn update_course_grade_details(
 
 #[tauri::command]
 pub fn get_gpa_summary(state: State<DbState>) -> Result<GradeSummary, String> {
-    let conn = state.conn.lock().unwrap();
-
-    // Get user's program to determine which grading scale to use
+    // Get user's program FIRST, before locking the connection
+    // This prevents deadlock since get_user_program also needs to lock the connection
     let user_program = get_user_program(state.clone())?;
-    
+
+    // Now lock the connection for our queries
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
+
     // If no program assigned, use default scale (4.0)
     let scale = if let Some(program) = user_program {
         if let Some(scale_id) = program.grading_scale_id {
-            get_grading_scale(state.clone(), scale_id)?
-                .ok_or("Scale not found".to_string())?
+            // We need to release the lock to call get_grading_scale
+            drop(conn);
+            get_grading_scale(state.clone(), scale_id)?.ok_or("Scale not found".to_string())?
         } else {
-            // Get default scale
+            // Get default scale - need to reacquire lock
+            // Drop the outer conn first
+            drop(conn);
+
+            let conn = conn_arc.lock().unwrap();
+            let scale = {
+                let mut stmt = conn
+                    .prepare("SELECT id, name, type, config, is_default FROM grading_scales WHERE is_default = 1 ORDER BY name ASC LIMIT 1")
+                    .map_err(|e| e.to_string())?;
+
+                stmt.query_row([], |row| {
+                    let config_str: String = row.get(3)?;
+                    Ok(GradingScale {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        type_: row.get(2)?,
+                        config: serde_json::from_str(&config_str).unwrap_or(GradingScaleConfig {
+                            max_point: 4.0,
+                            mappings: vec![],
+                        }),
+                        is_default: row.get(4)?,
+                    })
+                })
+                .map_err(|_| "No default scale found".to_string())?
+            };
+            drop(conn);
+            scale
+        }
+    } else {
+        // Get default scale
+        // Drop the outer conn first
+        drop(conn);
+
+        let conn = conn_arc.lock().unwrap();
+        let scale = {
             let mut stmt = conn
                 .prepare("SELECT id, name, type, config, is_default FROM grading_scales WHERE is_default = 1 ORDER BY name ASC LIMIT 1")
                 .map_err(|e| e.to_string())?;
-            
-            let scale = stmt.query_row([], |row| {
+
+            stmt.query_row([], |row| {
                 let config_str: String = row.get(3)?;
                 Ok(GradingScale {
                     id: row.get(0)?,
@@ -160,33 +202,22 @@ pub fn get_gpa_summary(state: State<DbState>) -> Result<GradeSummary, String> {
                     }),
                     is_default: row.get(4)?,
                 })
-            }).map_err(|_| "No default scale found".to_string())?;
-            scale
-        }
-    } else {
-        // Get default scale
-        let mut stmt = conn
-            .prepare("SELECT id, name, type, config, is_default FROM grading_scales WHERE is_default = 1 ORDER BY name ASC LIMIT 1")
-            .map_err(|e| e.to_string())?;
-        
-        let scale = stmt.query_row([], |row| {
-            let config_str: String = row.get(3)?;
-            Ok(GradingScale {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                type_: row.get(2)?,
-                config: serde_json::from_str(&config_str).unwrap_or(GradingScaleConfig {
-                    max_point: 4.0,
-                    mappings: vec![],
-                }),
-                is_default: row.get(4)?,
             })
-        }).map_err(|_| "No default scale found".to_string())?;
+            .map_err(|_| "No default scale found".to_string())?
+        };
+        drop(conn);
         scale
     };
 
     // Safeguard against division by zero
-    let max_point = if scale.config.max_point > 0.0 { scale.config.max_point } else { 4.0 };
+    let max_point = if scale.config.max_point > 0.0 {
+        scale.config.max_point
+    } else {
+        4.0
+    };
+
+    // Now reacquire the lock for our main queries
+    let conn = conn_arc.lock().unwrap();
 
     // Calculate Semester GPAs
     // We group by semester_id.
@@ -279,7 +310,8 @@ pub fn get_gpa_summary(state: State<DbState>) -> Result<GradeSummary, String> {
 /// Returns scales ordered by is_default DESC (default scales first)
 #[tauri::command]
 pub fn get_grading_scales(state: State<DbState>) -> Result<Vec<GradingScale>, String> {
-    let conn = state.conn.lock().unwrap();
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
     let mut stmt = conn
         .prepare("SELECT id, name, type, config, is_default FROM grading_scales ORDER BY is_default DESC, name ASC")
         .map_err(|e| e.to_string())?;
@@ -293,8 +325,8 @@ pub fn get_grading_scales(state: State<DbState>) -> Result<Vec<GradingScale>, St
             let is_default: bool = row.get(4)?;
 
             // Parse JSON config
-            let config: GradingScaleConfig = serde_json::from_str(&config_str)
-                .unwrap_or_else(|_| GradingScaleConfig {
+            let config: GradingScaleConfig =
+                serde_json::from_str(&config_str).unwrap_or_else(|_| GradingScaleConfig {
                     max_point: 10.0,
                     mappings: Vec::new(),
                 });
@@ -325,7 +357,8 @@ pub fn get_grading_scales(state: State<DbState>) -> Result<Vec<GradingScale>, St
 /// Returns None if scale doesn't exist
 #[tauri::command]
 pub fn get_grading_scale(state: State<DbState>, id: i64) -> Result<Option<GradingScale>, String> {
-    let conn = state.conn.lock().unwrap();
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
     let mut stmt = conn
         .prepare("SELECT id, name, type, config, is_default FROM grading_scales WHERE id = ?1")
         .map_err(|e| e.to_string())?;
@@ -339,8 +372,8 @@ pub fn get_grading_scale(state: State<DbState>, id: i64) -> Result<Option<Gradin
             let is_default: bool = row.get(4)?;
 
             // Parse JSON config
-            let config: GradingScaleConfig = serde_json::from_str(&config_str)
-                .unwrap_or_else(|_| GradingScaleConfig {
+            let config: GradingScaleConfig =
+                serde_json::from_str(&config_str).unwrap_or_else(|_| GradingScaleConfig {
                     max_point: 10.0,
                     mappings: Vec::new(),
                 });
@@ -380,10 +413,11 @@ pub fn create_grading_scale(
     }
 
     // Validate JSON config can be parsed
-    let _: GradingScaleConfig = serde_json::from_str(&config)
-        .map_err(|e| format!("Invalid JSON config: {}", e))?;
+    let _: GradingScaleConfig =
+        serde_json::from_str(&config).map_err(|e| format!("Invalid JSON config: {}", e))?;
 
-    let conn = state.conn.lock().unwrap();
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
     conn.execute(
         "INSERT INTO grading_scales (name, type, config, is_default) VALUES (?1, ?2, ?3, 0)",
         (name, type_, config),
@@ -400,7 +434,8 @@ pub fn create_grading_scale(
 /// Retrieves all programs from the database with their grading scales
 #[tauri::command]
 pub fn get_programs(state: State<DbState>) -> Result<Vec<Program>, String> {
-    let conn = state.conn.lock().unwrap();
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
     let mut stmt = conn
         .prepare("SELECT id, name, total_required_credits, grading_scale_id, duration_months FROM programs ORDER BY name ASC")
         .map_err(|e| e.to_string())?;
@@ -428,7 +463,8 @@ pub fn get_programs(state: State<DbState>) -> Result<Vec<Program>, String> {
 /// Retrieves a single program by ID with its grading scale details
 #[tauri::command]
 pub fn get_program(state: State<DbState>, id: i64) -> Result<Option<Program>, String> {
-    let conn = state.conn.lock().unwrap();
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
     let mut stmt = conn
         .prepare("SELECT id, name, total_required_credits, grading_scale_id, duration_months FROM programs WHERE id = ?1")
         .map_err(|e| e.to_string())?;
@@ -460,7 +496,8 @@ pub fn create_program(
     total_required_credits: f64,
     grading_scale_id: Option<i64>,
 ) -> Result<i64, String> {
-    let conn = state.conn.lock().unwrap();
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
 
     // If no scale provided, get the default one
     let scale_id = if let Some(id) = grading_scale_id {
@@ -468,9 +505,7 @@ pub fn create_program(
         let mut stmt = conn
             .prepare("SELECT id FROM grading_scales WHERE id = ?1")
             .map_err(|e| e.to_string())?;
-        let exists = stmt
-            .exists([id])
-            .map_err(|e| e.to_string())?;
+        let exists = stmt.exists([id]).map_err(|e| e.to_string())?;
         if !exists {
             return Err(format!("Grading scale with id {} not found", id));
         }
@@ -505,23 +540,31 @@ pub fn create_program(
 /// Updates user_profiles.program_id for the current session user
 #[tauri::command]
 pub fn set_user_program(state: State<DbState>, program_id: i64) -> Result<(), String> {
-    let conn = state.conn.lock().unwrap();
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
 
     // Validate program exists
     let mut stmt = conn
         .prepare("SELECT id FROM programs WHERE id = ?1")
         .map_err(|e| e.to_string())?;
-    let exists = stmt
-        .exists([program_id])
-        .map_err(|e| e.to_string())?;
+    let exists = stmt.exists([program_id]).map_err(|e| e.to_string())?;
 
     if !exists {
         return Err(format!("Program with id {} not found", program_id));
     }
 
-    // Update user profile (assuming single user session)
+    // Update user profile (using user_id column, assuming single user session)
+    // First check if there's a user profile
+    let user_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM user_profiles", [], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+
+    if user_count == 0 {
+        return Err("No user profile found. Please complete onboarding first.".to_string());
+    }
+
     conn.execute(
-        "UPDATE user_profiles SET program_id = ?1 WHERE id = (SELECT id FROM user_profiles LIMIT 1)",
+        "UPDATE user_profiles SET program_id = ?1 WHERE user_id = (SELECT user_id FROM user_profiles LIMIT 1)",
         [program_id],
     )
     .map_err(|e| e.to_string())?;
@@ -532,13 +575,14 @@ pub fn set_user_program(state: State<DbState>, program_id: i64) -> Result<(), St
 /// Gets the current user's assigned program with all details
 #[tauri::command]
 pub fn get_user_program(state: State<DbState>) -> Result<Option<Program>, String> {
-    let conn = state.conn.lock().unwrap();
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
     let mut stmt = conn
         .prepare(
             "SELECT p.id, p.name, p.total_required_credits, p.grading_scale_id, p.duration_months 
              FROM programs p 
              JOIN user_profiles u ON p.id = u.program_id 
-             LIMIT 1"
+             LIMIT 1",
         )
         .map_err(|e| e.to_string())?;
 
@@ -571,10 +615,11 @@ pub fn save_projection_settings(
     target_cgpa: Option<f64>,
     horizon: Option<i32>,
 ) -> Result<(), String> {
-    let conn = state.conn.lock().unwrap();
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
 
     conn.execute(
-        "UPDATE user_profiles SET target_cgpa = ?1, horizon = ?2 WHERE id = (SELECT id FROM user_profiles LIMIT 1)",
+        "UPDATE user_profiles SET target_cgpa = ?1, horizon = ?2 WHERE user_id = (SELECT user_id FROM user_profiles LIMIT 1)",
         (target_cgpa, horizon),
     )
     .map_err(|e| e.to_string())?;
@@ -584,17 +629,21 @@ pub fn save_projection_settings(
 
 /// Retrieves the user's projection settings (target CGPA and horizon)
 #[tauri::command]
-pub fn get_projection_settings(state: State<DbState>) -> Result<(Option<f64>, Option<i32>), String> {
-    let conn = state.conn.lock().unwrap();
+pub fn get_projection_settings(
+    state: State<DbState>,
+) -> Result<(Option<f64>, Option<i32>), String> {
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
     let mut stmt = conn
         .prepare("SELECT target_cgpa, horizon FROM user_profiles LIMIT 1")
         .map_err(|e| e.to_string())?;
 
     let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
     match rows.next() {
-        Ok(Some(row)) => {
-            Ok((row.get(0).map_err(|e| e.to_string())?, row.get(1).map_err(|e| e.to_string())?))
-        }
+        Ok(Some(row)) => Ok((
+            row.get(0).map_err(|e| e.to_string())?,
+            row.get(1).map_err(|e| e.to_string())?,
+        )),
         Ok(None) => Ok((None, None)),
         Err(e) => Err(e.to_string()),
     }
@@ -676,16 +725,19 @@ pub fn convert_course_grade_to_points(
 /// Projects future GPA requirements to reach target CGPA
 /// Fetches user's current data and calculates what's needed
 #[tauri::command]
-pub fn project_grades(state: State<DbState>) -> Result<crate::projection::ProjectionResult, String> {
+pub fn project_grades(
+    state: State<DbState>,
+) -> Result<crate::projection::ProjectionResult, String> {
     use crate::projection::project_future_requirements;
 
     // Get user's program with scale
-    let user_program = get_user_program(state.clone())?
-        .ok_or_else(|| "No program assigned. Please set a program in settings.".to_string())?;
+    let user_program = get_user_program(state.clone())?.ok_or_else(|| {
+        "No program assigned. Please set up your academic program in Settings.".to_string()
+    })?;
 
     // Get program's scale
-    let scale = get_grading_scale(state.clone(), user_program.grading_scale_id.ok_or_else(|| "Program has no grading scale".to_string())?)?
-        .ok_or_else(|| "Grading scale not found".to_string())?;
+    let scale = get_grading_scale(state.clone(), user_program.grading_scale_id.ok_or_else(|| "Your program doesn't have a grading scale assigned. Please update your program in Settings.".to_string())?)?
+        .ok_or_else(|| "Grading scale not found. Please check your program settings.".to_string())?;
 
     // Get user's projection settings (target CGPA and horizon)
     let (target_cgpa, horizon) = get_projection_settings(state.clone())?;
@@ -716,7 +768,8 @@ pub fn calculate_semester_gpa(
     state: State<DbState>,
     semester_id: i64,
 ) -> Result<(f64, f64), String> {
-    let conn = state.conn.lock().unwrap();
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
 
     // Query all courses in this semester
     let mut stmt = conn
@@ -754,7 +807,8 @@ pub fn calculate_semester_gpa(
 /// Returns (cgpa, total_credits)
 #[allow(dead_code)]
 pub fn calculate_cgpa(state: State<DbState>) -> Result<(f64, f64), String> {
-    let conn = state.conn.lock().unwrap();
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
 
     // Query all completed courses
     let mut stmt = conn
@@ -765,9 +819,7 @@ pub fn calculate_cgpa(state: State<DbState>) -> Result<(f64, f64), String> {
         .map_err(|e| e.to_string())?;
 
     let courses = stmt
-        .query_map([], |row| {
-            Ok((row.get::<_, f64>(0)?, row.get::<_, f64>(1)?))
-        })
+        .query_map([], |row| Ok((row.get::<_, f64>(0)?, row.get::<_, f64>(1)?)))
         .map_err(|e| e.to_string())?;
 
     let mut total_points = 0.0;
@@ -790,7 +842,9 @@ pub fn calculate_cgpa(state: State<DbState>) -> Result<(f64, f64), String> {
 
 /// Gets per-semester targets by calling projection function
 #[tauri::command]
-pub fn get_semester_targets(state: State<DbState>) -> Result<Vec<crate::projection::SemesterTarget>, String> {
+pub fn get_semester_targets(
+    state: State<DbState>,
+) -> Result<Vec<crate::projection::SemesterTarget>, String> {
     // Get current projection
     let projection = project_grades(state.clone())?;
 
@@ -811,6 +865,3 @@ pub fn get_course_targets(
 ) -> Result<Vec<crate::projection::CourseTarget>, String> {
     crate::projection::get_per_course_targets(state, semester_target_gpa, semester_id)
 }
-
-
-

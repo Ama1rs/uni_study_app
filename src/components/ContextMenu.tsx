@@ -34,7 +34,12 @@ export function ContextMenu({ x, y, actions, onClose }: ContextMenuProps) {
         <div
             ref={menuRef}
             className="fixed bg-bg-surface border border-border rounded-lg shadow-xl z-50 flex flex-col py-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
-            style={{ top: y, left: x, borderColor: 'var(--border)' }}
+            style={{
+                top: y,
+                left: x,
+                borderColor: 'var(--border)',
+                transform: y > window.innerHeight - 200 ? 'translateY(-100%)' : 'none'
+            }}
         >
             {actions.map((action, i) => (
                 <button

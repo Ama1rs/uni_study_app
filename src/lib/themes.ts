@@ -1,19 +1,14 @@
 export const ACCENT_COLORS = {
     blue: { dark: '#2383E2', light: '#0B6BCB', name: 'Blue' },
     purple: { dark: '#9B59B6', light: '#7B2CBF', name: 'Purple' },
-    pink: { dark: '#E91E63', light: '#C2185B', name: 'Pink' },
+    green: { dark: '#4CAF50', light: '#2E7D32', name: 'Green' },
     red: { dark: '#E03E3E', light: '#C62828', name: 'Red' },
     orange: { dark: '#FFA344', light: '#EF6C00', name: 'Orange' },
-    yellow: { dark: '#FFDC49', light: '#F9A825', name: 'Yellow' },
-    green: { dark: '#4CAF50', light: '#2E7D32', name: 'Green' },
-    teal: { dark: '#26A69A', light: '#00897B', name: 'Teal' },
-    cyan: { dark: '#00BCD4', light: '#0097A7', name: 'Cyan' },
-    indigo: { dark: '#5C6AC4', light: '#3949AB', name: 'Indigo' },
-    violet: { dark: '#8B5CF6', light: '#6D28D9', name: 'Violet' },
-    rose: { dark: '#F43F5E', light: '#E11D48', name: 'Rose' },
 } as const;
 
-export type AccentColor = keyof typeof ACCENT_COLORS;
+export type PresetAccentColor = keyof typeof ACCENT_COLORS;
+export type AccentColor = PresetAccentColor | string;
+
 
 export const DARK_THEME = {
     bgPrimary: '#191919',
@@ -64,16 +59,20 @@ export const WARM_LIGHT_THEME = {
 } as const;
 
 export function getAccentColor(accent: AccentColor, mode: 'light' | 'dark'): string {
-    return ACCENT_COLORS[accent][mode];
+    if (accent in ACCENT_COLORS) {
+        return ACCENT_COLORS[accent as PresetAccentColor][mode];
+    }
+    return accent; // Assume it's a hex string
 }
 
 export function getAccentHover(accent: AccentColor, mode: 'light' | 'dark'): string {
-    const color = ACCENT_COLORS[accent][mode];
+    const color = getAccentColor(accent, mode);
     // Darken by 10% for hover state
     return mode === 'dark'
         ? adjustBrightness(color, -10)
         : adjustBrightness(color, -15);
 }
+
 
 function adjustBrightness(hex: string, percent: number): string {
     const num = parseInt(hex.replace('#', ''), 16);

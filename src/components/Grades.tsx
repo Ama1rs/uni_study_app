@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Plus, ChevronRight, Settings } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -33,51 +33,118 @@ export function Grades() {
     const [isAddingSemester, setIsAddingSemester] = useState(false);
     const [newSemesterName, setNewSemesterName] = useState('');
 
+    // Error and Loading States
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
     const { profile } = { profile: { name: 'Student' } }; // Mock
+
+    // Helper function to add timeout to promises
+    const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, commandName: string): Promise<T> => {
+        return Promise.race([
+            promise,
+            new Promise<T>((_, reject) =>
+                setTimeout(() => reject(new Error(`${commandName} timed out after ${timeoutMs}ms`)), timeoutMs)
+            )
+        ]);
+    };
+
+    const refreshAll = useCallback(async () => {
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            console.log('[Grades] Starting data refresh...');
+
+            console.log('[Grades] Fetching scales...');
+            await withTimeout(fetchScales(), 5000, 'fetchScales');
+            console.log('[Grades] ✓ Scales loaded');
+
+            console.log('[Grades] Fetching semesters and courses...');
+            await withTimeout(fetchData(), 5000, 'fetchData');
+            console.log('[Grades] ✓ Data loaded');
+
+            console.log('[Grades] Fetching GPA summary...');
+            await withTimeout(fetchSummary(), 10000, 'fetchSummary');
+            console.log('[Grades] ✓ Summary loaded');
+
+            console.log('[Grades] Fetching projections...');
+            await withTimeout(fetchProjection(), 10000, 'fetchProjection');
+            console.log('[Grades] ✓ Projections loaded');
+
+            console.log('[Grades] All data loaded successfully');
+        } catch (e: any) {
+            console.error('[Grades] Error refreshing data:', e);
+            const errorMsg = e?.message || e?.toString() || 'Unknown error';
+            setError(errorMsg.includes('timed out')
+                ? `Request timed out: ${errorMsg}. The backend may be unresponsive.`
+                : 'Failed to load grades data. Please check your settings.');
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
         refreshAll();
-    }, []);
-
-    const refreshAll = () => {
-        fetchData();
-        fetchSummary();
-        fetchProjection();
-        fetchScales();
-    };
+    }, [refreshAll]);
 
     async function fetchScales() {
         try {
+            console.log('[Grades] → Invoking get_grading_scales');
             const s = await invoke<GradingScale[]>('get_grading_scales');
-            setScales(s);
-        } catch (e) { console.error(e); }
+            console.log('[Grades] ← Received', s?.length || 0, 'scales');
+            setScales(s || []);
+        } catch (e) {
+            console.error('[Grades] ✗ Failed to fetch grading scales:', e);
+            setError('No grading scales found. Please run database migrations.');
+            throw e;
+        }
     }
 
     async function fetchData() {
         try {
+            console.log('[Grades] → Invoking get_semesters');
             const sems = await invoke<Semester[]>('get_semesters');
+            console.log('[Grades] ← Received', sems?.length || 0, 'semesters');
+
+            console.log('[Grades] → Invoking get_repositories');
             const repos = await invoke<ExtendedRepository[]>('get_repositories');
-            setSemesters(sems);
-            setCourses(repos);
+            console.log('[Grades] ← Received', repos?.length || 0, 'repositories');
+
+            setSemesters(sems || []);
+            setCourses(repos || []);
         } catch (error) {
-            console.error('Failed to fetch grades data:', error);
+            console.error('[Grades] ✗ Failed to fetch grades data:', error);
+            // Don't throw - this is not critical
         }
     }
 
     async function fetchSummary() {
         try {
+            console.log('[Grades] → Invoking get_gpa_summary');
             const sum = await invoke<GradeSummary>('get_gpa_summary');
-            setSummary(sum);
+            console.log('[Grades] ← Received summary:', sum);
+            setSummary(sum || { cgpa: 0, total_credits: 0, points_secured: 0, semester_gpas: [] });
         } catch (error) {
-            // console.error('Failed to fetch summary (might be empty):', error);
+            console.error('[Grades] ✗ Failed to fetch summary:', error);
+            // Don't throw - user might not have grades yet
         }
     }
 
     async function fetchProjection() {
         try {
+            console.log('[Grades] → Invoking project_grades');
             const proj = await invoke<ProjectionResult>('project_grades');
+            console.log('[Grades] ← Received projection:', proj);
             setProjection(proj);
-        } catch (e) { console.error("Projection fail", e); }
+        } catch (e: any) {
+            console.error('[Grades] ✗ Projection failed:', e);
+            // Check if error is due to missing program
+            if (e?.toString()?.includes('No program assigned')) {
+                setError('No program assigned. Please set up your program in Settings.');
+            }
+            // Don't throw - projection is optional
+        }
     }
 
     async function handleAddSemester() {
@@ -89,9 +156,10 @@ export function Grades() {
             });
             setNewSemesterName('');
             setIsAddingSemester(false);
-            fetchData();
+            await fetchData();
         } catch (e) {
-            console.error("Failed to create semester", e);
+            console.error('Failed to create semester:', e);
+            setError('Failed to create semester. Please try again.');
         }
     }
 
@@ -122,18 +190,61 @@ export function Grades() {
     const currentCourses = currentSemesterId ? (coursesBySemester[currentSemesterId] || []) : [];
     const pastSemesters = semesters.filter(s => s.id !== currentSemesterId);
 
-    // Chart Data
-    const futureSemesters = projection && projection.credits_remaining > 0 ? Math.min(Math.ceil(projection.credits_remaining / 20), 4) : 0;
+    // Chart Data - with defensive null checks
+    const futureSemesters = projection?.credits_remaining && projection.credits_remaining > 0 ? Math.min(Math.ceil(projection.credits_remaining / 20), 4) : 0;
     const chartData = [
-        ...summary.semester_gpas.map((g) => ({ val: isNaN(g.gpa) ? 0 : g.gpa, label: g.semester_name, isFuture: false })),
+        ...(summary?.semester_gpas || []).map((g) => ({ val: isNaN(g.gpa) ? 0 : g.gpa, label: g.semester_name || 'Unknown', isFuture: false })),
         ...Array.from({ length: futureSemesters }).map(() => ({
-            val: projection && !isNaN(projection.required_future_gpa) ? projection.required_future_gpa : 0,
+            val: projection?.required_future_gpa && !isNaN(projection.required_future_gpa) ? projection.required_future_gpa : 0,
             label: `Future`,
             isFuture: true
         }))
     ];
 
     const displayChart = chartData.length > 8 ? [...chartData.slice(0, 4), ...chartData.slice(-4)] : chartData;
+
+    // Error boundary UI
+    if (error && !isLoading) {
+        return (
+            <div className="relative w-full h-full overflow-hidden bg-bg-primary flex items-center justify-center">
+                <div className="glass-card p-8 rounded-lg border border-red-500/20 bg-red-500/5 max-w-md text-center">
+                    <h2 className="text-xl font-bold text-red-400 mb-4">Unable to Load Grades</h2>
+                    <p className="text-text-secondary mb-6">{error}</p>
+                    <div className="flex gap-3 justify-center">
+                        <button
+                            onClick={() => setIsSettingsOpen(true)}
+                            className="px-4 py-2 bg-accent/10 border border-accent/20 text-accent rounded-lg hover:bg-accent/20 transition-all font-medium text-sm"
+                        >
+                            Open Settings
+                        </button>
+                        <button
+                            onClick={refreshAll}
+                            className="px-4 py-2 bg-white/5 border border-white/10 text-text-secondary rounded-lg hover:bg-white/10 transition-all font-medium text-sm"
+                        >
+                            Retry
+                        </button>
+                    </div>
+                </div>
+                <GradeSettingsDialog
+                    isOpen={isSettingsOpen}
+                    onClose={() => setIsSettingsOpen(false)}
+                    onSave={refreshAll}
+                />
+            </div>
+        );
+    }
+
+    // Loading state UI
+    if (isLoading) {
+        return (
+            <div className="relative w-full h-full overflow-hidden bg-bg-primary flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto mb-4"></div>
+                    <p className="text-text-secondary font-mono text-sm">Loading grades data...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="relative w-full h-full overflow-hidden bg-bg-primary">

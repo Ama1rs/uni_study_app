@@ -1,8 +1,6 @@
-import { useState, useEffect } from 'react';
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import { Menu, Settings } from 'lucide-react';
-
-const appWindow = getCurrentWindow();
+import { useState, useEffect, useRef } from 'react';
+import { Menu, Settings, X, Minus, Maximize2, Minimize2 } from 'lucide-react';
+import { Window } from '@tauri-apps/api/window';
 
 export function TitleBar({
   onToggleSidebar,
@@ -14,165 +12,183 @@ export function TitleBar({
   onOpenSettings?: () => void;
 }) {
   const [isMaximized, setIsMaximized] = useState(false);
+  const windowRef = useRef<Window | null>(null);
+  const listenerRef = useRef<(() => void) | null>(null);
 
+  // Initialize window on mount
   useEffect(() => {
-    const updateMaximizedState = async () => {
-      setIsMaximized(await appWindow.isMaximized());
+    const initializeWindow = async () => {
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window');
+        const appWindow = getCurrentWindow();
+        windowRef.current = appWindow;
+
+        // Get initial state
+        const maximized = await appWindow.isMaximized();
+        setIsMaximized(maximized);
+
+        // Listen for window state changes
+        const unlisten = await appWindow.onResized(async () => {
+          if (windowRef.current) {
+            const maximized = await windowRef.current.isMaximized();
+            setIsMaximized(maximized);
+          }
+        });
+
+        listenerRef.current = unlisten;
+      } catch (error) {
+        console.error('Failed to initialize window:', error);
+      }
     };
 
-    updateMaximizedState();
-    const unlistenResize = appWindow.onResized(updateMaximizedState);
+    initializeWindow();
 
+    // Cleanup
     return () => {
-      unlistenResize.then(f => f());
+      if (listenerRef.current) {
+        listenerRef.current();
+        listenerRef.current = null;
+      }
     };
   }, []);
 
-  const minimize = async () => {
+  // Window controls
+  const handleMinimize = async () => {
     try {
-      await appWindow.minimize();
-    } catch (error) {
-      console.error('Error minimizing window:', error);
-    }
-  };
-
-  const toggleMaximize = async () => {
-    try {
-      const isCurrentlyMaximized = await appWindow.isMaximized();
-      if (isCurrentlyMaximized) {
-        await appWindow.unmaximize();
-      } else {
-        await appWindow.maximize();
+      if (!windowRef.current) {
+        console.error('Window reference not initialized');
+        return;
       }
-      setIsMaximized(await appWindow.isMaximized());
+      console.log('Minimize button clicked, attempting to minimize...');
+      await windowRef.current.minimize();
+      console.log('Window minimized successfully');
     } catch (error) {
-      console.error('Error toggling maximize:', error);
+      console.error('Minimize failed:', error);
     }
   };
 
-  const close = () => appWindow.close();
+  const handleMaximize = async () => {
+    try {
+      if (!windowRef.current) {
+        console.error('Window reference not initialized');
+        return;
+      }
+      const maximized = await windowRef.current.isMaximized();
+      if (maximized) {
+        await windowRef.current.unmaximize();
+      } else {
+        await windowRef.current.maximize();
+      }
+      // Force state update
+      const newMaximized = await windowRef.current.isMaximized();
+      setIsMaximized(newMaximized);
+    } catch (error) {
+      console.error('Maximize toggle failed:', error);
+    }
+  };
 
-return (
-  <div className="h-10 bg-bg-primary border-b border-border flex items-center justify-between px-3 select-none">
-    {/* Left: Sidebar toggle + branding (this is the drag area) */}
-    <div
-      className="flex items-center gap-2 h-full flex-1"
-      data-tauri-drag-region
-      onDoubleClick={toggleMaximize}
-    >
-      {onToggleSidebar && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleSidebar();
-          }}
-          className="p-1.5 hover:bg-bg-hover rounded-md transition-colors text-text-tertiary hover:text-text-primary"
-          data-tauri-drag-region="false"
-        >
-          <Menu size={16} />
-        </button>
-      )}
-      <div className="flex items-center gap-2 pointer-events-none">
-        <div className="w-5 h-5 bg-accent rounded-md flex items-center justify-center">
-          <span className="text-black font-bold text-[10px]">A</span>
+  const handleClose = async () => {
+    try {
+      if (!windowRef.current) {
+        console.error('Window reference not initialized');
+        return;
+      }
+      await windowRef.current.close();
+    } catch (error) {
+      console.error('Close failed:', error);
+    }
+  };
+
+  const handleDoubleClick = () => {
+    handleMaximize();
+  };
+
+  return (
+    <div className="h-10 bg-bg-primary border-b border-border flex items-center justify-between px-3 select-none">
+      {/* Left: Sidebar toggle + branding */}
+      <div
+        className="flex items-center gap-2 h-full flex-1 cursor-default"
+        data-tauri-drag-region
+        onDoubleClick={handleDoubleClick}
+      >
+        {onToggleSidebar && (
+          <button
+            onClick={onToggleSidebar}
+            className="p-1.5 hover:bg-bg-hover rounded-md transition-colors text-text-tertiary hover:text-text-primary z-10"
+            data-tauri-drag-region="false"
+            type="button"
+            title="Toggle Sidebar"
+          >
+            <Menu size={16} />
+          </button>
+        )}
+        <div className="flex items-center gap-2 pointer-events-none">
+          <div className="w-5 h-5 bg-accent rounded-md flex items-center justify-center">
+            <span className="text-black font-bold text-[10px]">A</span>
+          </div>
+          <span className="text-xs font-medium text-text-primary font-mono">
+            Academia
+          </span>
         </div>
-        <span className="text-xs font-medium text-text-primary font-mono">
-          Academia
-        </span>
+      </div>
+
+      {/* Right: window controls */}
+      <div className="flex items-center h-full gap-0" data-tauri-drag-region="false">
+        {onOpenSettings && (
+          <button
+            onClick={onOpenSettings}
+            className="px-3 h-full flex items-center justify-center text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
+            type="button"
+            title="Settings"
+          >
+            <Settings size={14} />
+          </button>
+        )}
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            className="px-3 h-full text-xs text-text-tertiary hover:text-red-400 hover:bg-bg-hover transition-colors font-mono"
+            type="button"
+            title="Logout"
+          >
+            Logout
+          </button>
+        )}
+        {/* Minimize */}
+        <button
+          onClick={() => {
+            console.log('Minimize button clicked');
+            handleMinimize();
+          }}
+          className="w-12 h-full flex items-center justify-center hover:bg-bg-hover transition-colors text-text-tertiary hover:text-text-primary active:bg-bg-hover/50"
+          type="button"
+          title="Minimize"
+        >
+          <Minus size={14} strokeWidth={2} />
+        </button>
+        {/* Maximize/Restore */}
+        <button
+          onClick={handleMaximize}
+          className="w-12 h-full flex items-center justify-center hover:bg-bg-hover transition-colors text-text-tertiary hover:text-text-primary"
+          type="button"
+          title={isMaximized ? 'Restore' : 'Maximize'}
+        >
+          {isMaximized ? (
+            <Minimize2 size={14} strokeWidth={2} />
+          ) : (
+            <Maximize2 size={14} strokeWidth={2} />
+          )}
+        </button>
+        {/* Close */}
+        <button
+          onClick={handleClose}
+          className="w-12 h-full flex items-center justify-center hover:bg-red-600 transition-colors text-text-tertiary hover:text-white"
+          type="button"
+          title="Close"
+        >
+          <X size={14} strokeWidth={2} />
+        </button>
       </div>
     </div>
-
-    {/* Right: window controls – NOT draggable */}
-    <div className="flex items-center h-full" data-tauri-drag-region="false">
-      {onOpenSettings && (
-        <button
-          onClick={onOpenSettings}
-          className="p-2 h-full text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
-          title="Settings"
-        >
-          <Settings size={14} />
-        </button>
-      )}
-      {onLogout && (
-        <button
-          onClick={onLogout}
-          className="px-3 h-full text-xs text-text-tertiary hover:text-red-400 hover:bg-bg-hover transition-colors font-mono"
-          title="Logout"
-        >
-          Logout
-        </button>
-      )}
-      <button
-        onClick={minimize}
-        className="inline-flex justify-center items-center w-12 h-full hover:bg-bg-hover transition-colors"
-        aria-label="Minimize"
-        data-tauri-drag-region="false"
-      >
-        <svg width="10" height="1" viewBox="0 0 10 1" fill="none">
-          <path
-            d="M0 0.5h10"
-            stroke="currentColor"
-            strokeWidth="1"
-            className="text-text-tertiary"
-          />
-        </svg>
-      </button>
-      <button
-        onClick={toggleMaximize}
-        className="inline-flex justify-center items-center w-12 h-full hover:bg-bg-hover transition-colors"
-        aria-label={isMaximized ? 'Restore' : 'Maximize'}
-        data-tauri-drag-region="false"
-      >
-        {isMaximized ? (
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <rect
-              x="0"
-              y="2"
-              width="7"
-              height="7"
-              stroke="currentColor"
-              strokeWidth="1"
-              fill="none"
-              className="text-text-tertiary"
-            />
-            <path
-              d="M3 2V0h7v7h-2"
-              stroke="currentColor"
-              strokeWidth="1"
-              className="text-text-tertiary"
-            />
-          </svg>
-        ) : (
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <rect
-              x="0.5"
-              y="0.5"
-              width="9"
-              height="9"
-              stroke="currentColor"
-              strokeWidth="1"
-              fill="none"
-              className="text-text-tertiary"
-            />
-          </svg>
-        )}
-      </button>
-      <button
-        onClick={close}
-        className="inline-flex justify-center items-center w-12 h-full hover:bg-red-600 transition-colors group"
-        aria-label="Close"
-        data-tauri-drag-region="false"
-      >
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-          <path
-            d="M0 0l10 10M10 0L0 10"
-            stroke="currentColor"
-            strokeWidth="1"
-            className="text-text-tertiary group-hover:text-white"
-          />
-        </svg>
-      </button>
-    </div>
-  </div>
-);
+  );
 }

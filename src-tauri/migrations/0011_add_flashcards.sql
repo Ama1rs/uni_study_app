@@ -1,0 +1,9 @@
+CREATE TABLE flashcards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    note_id INTEGER NOT NULL,
+    front TEXT NOT NULL,
+    back TEXT NOT NULL,
+    heading_path TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(note_id) REFERENCES resources(id) ON DELETE CASCADE
+);

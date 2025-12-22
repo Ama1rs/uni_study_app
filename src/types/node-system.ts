@@ -36,3 +36,12 @@ export interface Resource {
     created_at?: string;
     updated_at?: string;
 }
+
+export interface Flashcard {
+    id: number;
+    note_id: number;
+    front: string;
+    back: string;
+    heading_path?: string;
+    created_at?: string;
+}

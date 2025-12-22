@@ -61,26 +61,55 @@ function useResourcesMetric() {
     return { data, labels, currentValue };
 }
 
+interface StudySession {
+    id: number;
+    start_at: string;
+    duration: number | null;
+    is_break: boolean;
+}
+
 function useStudyTimeMetric() {
-    // Simulated data
-    const [data, setData] = useState<number[]>([2.5, 4, 3.5, 5, 4.5, 6, 8]);
-    const [labels] = useState<string[]>(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
-    const [currentValue, setCurrentValue] = useState(12.5);
+    const [data, setData] = useState<number[]>([]);
+    const [labels, setLabels] = useState<string[]>([]);
+    const [currentValue, setCurrentValue] = useState(0);
 
-    // Live timer simulation
     useEffect(() => {
-        const interval = setInterval(() => {
-            // Increment slightly to simulate active studying
-            setCurrentValue(prev => +(prev + 0.01).toFixed(2));
+        async function fetchStudyTime() {
+            try {
+                // Fetch last 7 days of sessions
+                const fromDate = new Date();
+                fromDate.setDate(fromDate.getDate() - 6);
+                const from = fromDate.toISOString().split('T')[0];
 
-            // Update last data point
-            setData(prev => {
-                const newData = [...prev];
-                newData[newData.length - 1] = +(newData[newData.length - 1] + 0.01).toFixed(2);
-                return newData;
-            });
-        }, 60000); // Every minute
+                const sessions = await invoke<StudySession[]>('get_study_sessions', { from });
 
+                // Group by day
+                const last7Days = Array.from({ length: 7 }, (_, i) => {
+                    const d = new Date();
+                    d.setDate(d.getDate() - (6 - i));
+                    return d.toISOString().split('T')[0];
+                });
+
+                const dailyHours = last7Days.map(date => {
+                    const daySessions = sessions.filter(s => s.start_at.startsWith(date) && !s.is_break);
+                    const totalSeconds = daySessions.reduce((acc, s) => acc + (s.duration || 0), 0);
+                    return +(totalSeconds / 3600).toFixed(2);
+                });
+
+                setData(dailyHours);
+                setLabels(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']); // Simplification for now
+
+                // Current value = total hours today
+                const todayHours = dailyHours[dailyHours.length - 1];
+                setCurrentValue(todayHours);
+            } catch (e) {
+                console.error("Failed to fetch study time metric", e);
+            }
+        }
+        fetchStudyTime();
+
+        // Refresh every 5 minutes
+        const interval = setInterval(fetchStudyTime, 5 * 60 * 1000);
         return () => clearInterval(interval);
     }, []);
 

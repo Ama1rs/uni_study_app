@@ -41,28 +41,48 @@ export function GradeSettingsDialog({ isOpen, onClose, onSave }: GradeSettingsDi
     async function handleSave() {
         if (selectedProgramId) {
             try {
-                await invoke('set_user_program', { program_id: selectedProgramId });
+                console.log('[GradeSettings] Setting user program to:', selectedProgramId);
+                await invoke('set_user_program', { programId: selectedProgramId });
+                console.log('[GradeSettings] ✓ Program set successfully');
                 onSave();
                 onClose();
             } catch (e) {
-                console.error(e);
+                console.error('[GradeSettings] ✗ Failed to set program:', e);
+                alert(`Failed to save program: ${e}`);
             }
+        } else {
+            console.warn('[GradeSettings] No program selected');
         }
     }
 
     async function handleCreateProgram() {
-        if (!newProgramName || !newProgramCredits) return;
+        if (!newProgramName || !newProgramCredits) {
+            console.warn('[GradeSettings] Missing program name or credits');
+            return;
+        }
         try {
+            console.log('[GradeSettings] Creating program:', {
+                name: newProgramName,
+                credits: parseFloat(newProgramCredits),
+                scale_id: newProgramScaleId
+            });
+
             const id = await invoke<number>('create_program', {
                 name: newProgramName,
-                total_required_credits: parseFloat(newProgramCredits),
-                grading_scale_id: newProgramScaleId
+                totalRequiredCredits: parseFloat(newProgramCredits),
+                gradingScaleId: newProgramScaleId
             });
-            await invoke('set_user_program', { program_id: id });
+            console.log('[GradeSettings] ✓ Program created with ID:', id);
+
+            console.log('[GradeSettings] Setting user program to:', id);
+            await invoke('set_user_program', { programId: id });
+            console.log('[GradeSettings] ✓ User program set');
+
             onSave();
             onClose();
         } catch (e) {
-            console.error(e);
+            console.error('[GradeSettings] ✗ Failed to create program:', e);
+            alert(`Failed to create program: ${e}`);
         }
     }
 

@@ -17,47 +17,47 @@ export function ProfileSetupStep({ onComplete, onBack }: ProfileSetupStepProps) 
     };
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col">
             {/* Header */}
-            <div className="mb-8">
-                <h2 className="text-xl font-bold text-text-primary mb-2">Your Profile</h2>
-                <p className="text-sm text-text-secondary font-mono">Personalize your experience.</p>
+            <div className="mb-6">
+                <h2 className="text-xl font-bold text-text-primary mb-1">Your Profile</h2>
+                <p className="text-sm text-text-secondary">Personalize your experience.</p>
             </div>
 
             {/* Form */}
             <div className="space-y-4 mb-6">
-                <div className="space-y-2">
-                    <label className="block text-xs text-text-secondary font-mono">Name</label>
+                <div>
+                    <label className="block text-xs text-text-secondary mb-1.5">Name</label>
                     <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" size={16} />
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" size={16} />
                         <input
                             type="text"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             placeholder="Your name"
-                            className="w-full pl-10 pr-3 py-3 bg-bg-primary border border-border rounded-lg text-text-primary placeholder-text-tertiary font-mono text-sm focus:outline-none focus:border-accent"
+                            className="w-full pl-10 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-text-primary placeholder-text-tertiary text-sm focus:outline-none focus:border-accent"
                         />
                     </div>
                 </div>
 
-                <div className="space-y-2">
-                    <label className="block text-xs text-text-secondary font-mono">University</label>
+                <div>
+                    <label className="block text-xs text-text-secondary mb-1.5">University</label>
                     <div className="relative">
-                        <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" size={16} />
+                        <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" size={16} />
                         <input
                             type="text"
                             value={university}
                             onChange={(e) => setUniversity(e.target.value)}
                             placeholder="Your university"
-                            className="w-full pl-10 pr-3 py-3 bg-bg-primary border border-border rounded-lg text-text-primary placeholder-text-tertiary font-mono text-sm focus:outline-none focus:border-accent"
+                            className="w-full pl-10 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-text-primary placeholder-text-tertiary text-sm focus:outline-none focus:border-accent"
                         />
                     </div>
                 </div>
             </div>
 
             {/* Navigation */}
-            <div className="flex justify-between mt-auto">
-                <button onClick={onBack} className="px-4 py-2 text-sm text-text-tertiary hover:text-text-primary transition-colors flex items-center gap-1">
+            <div className="flex justify-between mt-auto pt-4">
+                <button onClick={onBack} className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors flex items-center gap-1">
                     <ArrowLeft size={14} /> Back
                 </button>
                 <button

@@ -35,7 +35,7 @@ pub struct CourseTarget {
 }
 
 /// Calculates the future GPA requirements to reach target CGPA
-/// 
+///
 /// # Arguments
 /// * `state` - Database state
 /// * `current_cgpa` - User's current CGPA
@@ -56,10 +56,27 @@ pub fn project_future_requirements(
     horizon: Option<i32>,
 ) -> Result<ProjectionResult, String> {
     // Sanitize inputs
-    let current_cgpa = if current_cgpa.is_nan() || !current_cgpa.is_finite() { 0.0 } else { current_cgpa };
-    let credits_completed = if credits_completed.is_nan() || !credits_completed.is_finite() { 0.0 } else { credits_completed };
-    let total_required_credits = if total_required_credits.is_nan() || !total_required_credits.is_finite() { 160.0 } else { total_required_credits };
-    let target_cgpa = if target_cgpa.is_nan() || !target_cgpa.is_finite() { 7.0 } else { target_cgpa };
+    let current_cgpa = if current_cgpa.is_nan() || !current_cgpa.is_finite() {
+        0.0
+    } else {
+        current_cgpa
+    };
+    let credits_completed = if credits_completed.is_nan() || !credits_completed.is_finite() {
+        0.0
+    } else {
+        credits_completed
+    };
+    let total_required_credits =
+        if total_required_credits.is_nan() || !total_required_credits.is_finite() {
+            160.0
+        } else {
+            total_required_credits
+        };
+    let target_cgpa = if target_cgpa.is_nan() || !target_cgpa.is_finite() {
+        7.0
+    } else {
+        target_cgpa
+    };
 
     // Calculate remaining credits
     let credits_remaining = (total_required_credits - credits_completed).max(0.0);
@@ -80,7 +97,11 @@ pub fn project_future_requirements(
     }
 
     // Get max point for scale, safeguard against zero
-    let max_scale_point = if scale.config.max_point > 0.0 { scale.config.max_point } else { 4.0 };
+    let max_scale_point = if scale.config.max_point > 0.0 {
+        scale.config.max_point
+    } else {
+        4.0
+    };
 
     // Calculate future GPA requirement
     // Formula: (target_total_gp - current_gp) / credits_remaining = required_future_gpa
@@ -170,7 +191,8 @@ pub fn get_per_semester_targets(
     for semester in semesters {
         // Allocate GPA based on proportion of remaining credits
         let credit_fraction = semester.planned_credits / projection.credits_remaining;
-        let gp_for_semester = projection.required_future_gpa * credit_fraction * semester.planned_credits;
+        let gp_for_semester =
+            projection.required_future_gpa * credit_fraction * semester.planned_credits;
         let semester_target_gpa = if semester.planned_credits > 0.0 {
             gp_for_semester / semester.planned_credits
         } else {
@@ -200,13 +222,12 @@ pub fn get_per_semester_targets(
 /// Vector of per-course targets
 #[tauri::command]
 pub fn get_per_course_targets(
-    state: tauri::State<crate::db::DbState>,
+    state: tauri::State<crate::db_manager::DbState>,
     semester_target_gpa: f64,
     semester_id: i64,
 ) -> Result<Vec<CourseTarget>, String> {
-
-
-    let conn = state.conn.lock().unwrap();
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
 
     // Query all courses in this semester
     let mut stmt = conn
@@ -249,7 +270,7 @@ pub fn get_per_course_targets(
 ///
 /// # Formula
 /// study_hours = credits × (target_gpa / max_point) × base_hours_per_credit
-/// 
+///
 /// Where:
 /// - base_hours_per_credit = 2.5 (typical engineering/science course)
 /// - target_gpa as percentage of max: gap_ratio = target_gpa / max_point
@@ -312,12 +333,11 @@ mod tests {
     fn test_projection_feasible() {
         let scale = create_test_scale();
         let result = project_future_requirements(
-            7.5,  // current CGPA
-            60.0, // credits completed
+            7.5,   // current CGPA
+            60.0,  // credits completed
             120.0, // total required
-            8.0,  // target CGPA
-            &scale,
-            None,
+            8.0,   // target CGPA
+            &scale, None,
         )
         .unwrap();
 
@@ -330,12 +350,11 @@ mod tests {
     fn test_projection_infeasible() {
         let scale = create_test_scale();
         let result = project_future_requirements(
-            4.0,  // current CGPA
+            4.0,   // current CGPA
             100.0, // credits completed
             120.0, // total required
-            9.8,  // target CGPA (unrealistic)
-            &scale,
-            None,
+            9.8,   // target CGPA (unrealistic)
+            &scale, None,
         )
         .unwrap();
 
@@ -347,12 +366,11 @@ mod tests {
     fn test_projection_complete() {
         let scale = create_test_scale();
         let result = project_future_requirements(
-            7.5,  // current CGPA
+            7.5,   // current CGPA
             120.0, // credits completed
             120.0, // total required
-            7.5,  // target CGPA
-            &scale,
-            None,
+            7.5,   // target CGPA
+            &scale, None,
         )
         .unwrap();
 
@@ -364,15 +382,7 @@ mod tests {
     #[test]
     fn test_semester_targets() {
         let scale = create_test_scale();
-        let projection = project_future_requirements(
-            7.0,
-            60.0,
-            120.0,
-            8.0,
-            &scale,
-            None,
-        )
-        .unwrap();
+        let projection = project_future_requirements(7.0, 60.0, 120.0, 8.0, &scale, None).unwrap();
 
         let semesters = vec![
             Semester {

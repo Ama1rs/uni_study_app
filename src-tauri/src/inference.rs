@@ -1,89 +1,96 @@
-// Direct GGUF model inference using Candle (Pure Rust)
-// No CMake, LLVM, or external build tools required
+// Inference using llama-cpp-2 bindings
+// This replaces the previous Candle implementation
 
-use candle_core::quantized::gguf_file::Content;
-use candle_core::{Device, Tensor};
-use candle_transformers::generation::LogitsProcessor;
-use candle_transformers::models::quantized_qwen2 as quantized_model;
+use llama_cpp_2::context::params::LlamaContextParams;
+use llama_cpp_2::llama_backend::LlamaBackend;
+use llama_cpp_2::llama_batch::LlamaBatch;
+use llama_cpp_2::model::params::LlamaModelParams;
+use llama_cpp_2::model::{AddBos, LlamaModel, Special};
+use llama_cpp_2::sampling::LlamaSampler;
 use parking_lot::Mutex;
-use quantized_model::ModelWeights;
+use serde::{Deserialize, Serialize};
+use std::num::NonZeroU32;
 use std::path::Path;
-use std::sync::Arc;
-use tokenizers::Tokenizer;
+use std::sync::{Arc, OnceLock};
+use std::time::Instant;
 
-/// Global state for the loaded model
+#[derive(Serialize, Deserialize, Clone)]
+pub struct InferenceMetrics {
+    pub ttft_ms: u64,
+    pub tps: f32,
+    pub total_tokens: u32,
+    pub total_time_ms: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct InferenceResult {
+    pub content: String,
+    pub metrics: InferenceMetrics,
+}
+
 pub struct ModelState {
-    model: Option<ModelWeights>,
-    tokenizer: Option<Tokenizer>,
-    device: Device,
+    model: Option<Arc<LlamaModel>>,
+    // We store the path to allow checking what's loaded
     model_path: Option<String>,
+    // Advanced settings
+    pub n_gpu_layers: u32,
+    pub n_ctx: u32,
+    pub n_threads: u32,
+}
+
+static BACKEND: OnceLock<LlamaBackend> = OnceLock::new();
+
+fn get_backend() -> &'static LlamaBackend {
+    BACKEND.get_or_init(|| LlamaBackend::init().expect("Failed to init llama backend"))
 }
 
 impl Default for ModelState {
     fn default() -> Self {
         Self {
             model: None,
-            tokenizer: None,
-            device: Device::Cpu,
             model_path: None,
+            n_gpu_layers: 0, // Default to CPU
+            n_ctx: 2048,
+            n_threads: 4,
         }
     }
 }
 
-/// Thread-safe wrapper for model state
 pub type SharedModelState = Arc<Mutex<ModelState>>;
 
 pub fn create_model_state() -> SharedModelState {
     Arc::new(Mutex::new(ModelState::default()))
 }
 
-/// Load a GGUF model from disk
 pub fn load_model(
     state: &SharedModelState,
     model_path: &str,
-    tokenizer_path: Option<&str>,
+    n_gpu_layers: Option<u32>,
+    n_ctx: Option<u32>,
+    n_threads: Option<u32>,
 ) -> Result<String, String> {
     let path = Path::new(model_path);
     if !path.exists() {
         return Err(format!("Model file not found: {}", model_path));
     }
 
-    if !model_path.to_lowercase().ends_with(".gguf") {
-        return Err("Only .gguf model files are supported".to_string());
+    let mut state_guard = state.lock();
+
+    // Update settings if provided
+    if let Some(gpu) = n_gpu_layers {
+        state_guard.n_gpu_layers = gpu;
+    }
+    if let Some(ctx) = n_ctx {
+        state_guard.n_ctx = ctx;
+    }
+    if let Some(threads) = n_threads {
+        state_guard.n_threads = threads;
     }
 
-    let mut state_guard = state.lock();
-    let device = state_guard.device.clone();
-
-    // Load the GGUF model
-    let mut file =
-        std::fs::File::open(path).map_err(|e| format!("Failed to open model file: {}", e))?;
-
-    let content =
-        Content::read(&mut file).map_err(|e| format!("Failed to read GGUF content: {}", e))?;
-
-    let model = quantized_model::ModelWeights::from_gguf(content, &mut file, &device)
-        .map_err(|e| format!("Failed to load GGUF model: {}", e))?;
-
-    // Load tokenizer
-    let tokenizer = if let Some(tok_path) = tokenizer_path {
-        Some(
-            Tokenizer::from_file(tok_path)
-                .map_err(|e| format!("Failed to load tokenizer: {}", e))?,
-        )
-    } else {
-        // Try to find tokenizer.json in same directory as model
-        let parent = path.parent().unwrap_or(Path::new("."));
-        let tok_path = parent.join("tokenizer.json");
-        if tok_path.exists() {
-            Some(
-                Tokenizer::from_file(&tok_path)
-                    .map_err(|e| format!("Failed to load tokenizer: {}", e))?,
-            )
-        } else {
-            None
-        }
-    };
+    // Load model
+    let params = LlamaModelParams::default().with_n_gpu_layers(state_guard.n_gpu_layers);
+    let model = LlamaModel::load_from_file(get_backend(), path, &params)
+        .map_err(|e| format!("Failed to load model: {}", e))?;
 
     let model_name = path
         .file_stem()
@@ -91,197 +98,159 @@ pub fn load_model(
         .unwrap_or("Unknown")
         .to_string();
 
-    state_guard.model = Some(model);
-    state_guard.tokenizer = tokenizer;
+    state_guard.model = Some(Arc::new(model));
     state_guard.model_path = Some(model_path.to_string());
 
-    Ok(format!("Loaded model: {}", model_name))
+    Ok(format!(
+        "Loaded model: {} (GPU Layers: {}, Ctx: {})",
+        model_name, state_guard.n_gpu_layers, state_guard.n_ctx
+    ))
 }
 
-/// Unload the current model to free memory
 pub fn unload_model(state: &SharedModelState) -> Result<String, String> {
     let mut state_guard = state.lock();
-
     if state_guard.model.is_none() {
         return Err("No model is currently loaded".to_string());
     }
-
     state_guard.model = None;
-    state_guard.tokenizer = None;
     state_guard.model_path = None;
-
     Ok("Model unloaded successfully".to_string())
 }
 
-/// Check if a model is currently loaded
 pub fn is_model_loaded(state: &SharedModelState) -> bool {
     state.lock().model.is_some()
 }
 
-/// Get the currently loaded model path
 pub fn get_loaded_model_path(state: &SharedModelState) -> Option<String> {
     state.lock().model_path.clone()
 }
-/// Generate a response from the loaded model
+
 pub fn generate_response(
     state: &SharedModelState,
     prompt: &str,
     max_tokens: u32,
     temperature: f32,
-) -> Result<String, String> {
-    // Lock state
-    let mut state_guard = state.lock();
+) -> Result<InferenceResult, String> {
+    let (model, n_ctx, n_threads) = {
+        let state_guard = state.lock();
+        let model = state_guard
+            .model
+            .as_ref()
+            .ok_or("No model loaded. Please load a model first.")?
+            .clone();
+        (model, state_guard.n_ctx, state_guard.n_threads)
+    };
 
-    // Clone what we need OUT of the guard so we don't hold immutable borrows
-    let device = state_guard.device.clone();
-    let max_tokens = max_tokens.min(16);
-    let tokenizer = state_guard
-        .tokenizer
-        .as_ref()
-        .ok_or("No tokenizer loaded. Please provide a tokenizer.json file.")?
-        .clone(); // <-- own a copy, no &Tokenizer tied to state_guard
+    let start_time = Instant::now();
+    let mut ttft_ms = 0;
 
-    let model = state_guard
-        .model
-        .as_mut()
-        .ok_or("No model loaded. Please load a model first.")?;
+    // Create a context for this generation
+    let ctx_params = LlamaContextParams::default()
+        .with_n_ctx(NonZeroU32::new(n_ctx))
+        .with_n_threads(n_threads as i32);
+    let mut ctx = model
+        .new_context(get_backend(), ctx_params)
+        .map_err(|e| format!("Failed to create context: {}", e))?;
 
-    // 1. Tokenize prompt
-    let encoding = tokenizer
-        .encode(prompt, true)
+    // Tokenize
+    let tokens = model
+        .str_to_token(prompt, AddBos::Always)
         .map_err(|e| format!("Tokenization failed: {}", e))?;
 
-    let mut all_tokens: Vec<u32> = encoding.get_ids().to_vec();
-
-    if all_tokens.is_empty() {
-        return Err("Tokenizer returned zero tokens for the prompt.".to_string());
+    if tokens.is_empty() {
+        return Err("Prompt resulted in no tokens.".to_string());
     }
-    println!(
-        "generate_response: prompt_len = {}, max_tokens = {}",
-        all_tokens.len(),
-        max_tokens
-    );
 
-    // 2. Set up sampling
-    let mut logits_processor = LogitsProcessor::new(
-        42,                       // seed
-        Some(temperature as f64), // temperature
-        None,                     // top_p (None = no nucleus filter)
-    );
+    let mut output = String::new();
 
-    let mut generated_tokens: Vec<u32> = Vec::new();
+    // We use a batch for decoding
+    let mut batch = LlamaBatch::new(n_ctx as usize, 1);
 
-    // Qwen2: BOS/PAD 151643, EOS 151645 in GGUF metadata.
-    const QWEN2_EOS: u32 = 151645;
-    println!(
-        "generate_response: prompt len = {}, max_tokens = {}",
-        all_tokens.len(),
-        max_tokens
-    );
-    // 3. Autoregressive loop
-    for step in 0..max_tokens {
-        println!(
-            "generate_response: step {}, context_len = {}",
-            step,
-            all_tokens.len()
-        );
-        let context_len = all_tokens.len();
-        let context_size = 256.min(context_len); // sliding window
-        let start_pos = context_len - context_size;
+    // Add prompt tokens to batch
+    let last_token_idx = (tokens.len() - 1) as i32;
+    for (i, &token) in tokens.iter().enumerate() {
+        batch
+            .add(token, i as i32, &[0], i as i32 == last_token_idx)
+            .map_err(|e| format!("Failed to add token to batch: {}", e))?;
+    }
 
-        let input_slice = &all_tokens[start_pos..];
-        if input_slice.is_empty() {
-            return Err(format!(
-                "Internal error: empty input slice (context_len={context_len}, start_pos={start_pos})"
-            ));
+    // Decode the prompt
+    ctx.decode(&mut batch)
+        .map_err(|e| format!("Decode failed: {}", e))?;
+
+    let mut n_past = tokens.len() as i32;
+
+    // Setup robust sampler chain
+    let seed = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_micros() as u32)
+        .unwrap_or(42);
+
+    let mut sampler = if temperature <= 0.0 {
+        LlamaSampler::greedy()
+    } else {
+        LlamaSampler::chain_simple([
+            LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
+            LlamaSampler::top_k(40),
+            LlamaSampler::top_p(0.95, 1),
+            LlamaSampler::min_p(0.05, 1),
+            LlamaSampler::temp(temperature),
+            LlamaSampler::dist(seed),
+        ])
+    };
+
+    let mut tokens_generated = 0;
+
+    for _ in 0..max_tokens {
+        // Sample next token
+        let token = sampler.sample(&ctx, batch.n_tokens() - 1);
+
+        if tokens_generated == 0 {
+            ttft_ms = start_time.elapsed().as_millis() as u64;
         }
 
-        let input = Tensor::new(input_slice, &device)
-            .map_err(|e| format!("Tensor creation failed: {}", e))?
-            .unsqueeze(0)
-            .map_err(|e| format!("Unsqueeze failed: {}", e))?;
-        let t0 = std::time::Instant::now();
-        // Single forward pass for this step
-        let logits = model
-            .forward(&input, start_pos)
-            .map_err(|e| format!("Forward pass failed: {}", e))?;
-        println!(
-            "generate_response: step {} forward took {:?}",
-            step,
-            t0.elapsed()
-        );
-
-        // Remove batch dimension; expected shapes now:
-        // - [vocab]
-        // - [seq_len, vocab]
-        let logits = logits
-            .squeeze(0)
-            .map_err(|e| format!("Squeeze failed: {}", e))?;
-
-        let dims = logits.dims();
-
-        if dims.is_empty() {
-            return Err("Model returned scalar logits (rank 0), cannot sample.".to_string());
-        }
-
-        // Select last-step logits correctly based on shape
-        let last_logits = match dims {
-            // [vocab] -> already per-token logits
-            [vocab] => {
-                if *vocab == 0 {
-                    return Err("Model returned empty vocab dimension.".to_string());
-                }
-                logits
-            }
-            // [seq_len, vocab] -> take last row
-            [seq_len, vocab] => {
-                if *seq_len == 0 || *vocab == 0 {
-                    return Err(format!(
-                        "Model returned invalid logits shape [seq_len={}, vocab={}].",
-                        seq_len, vocab
-                    ));
-                }
-                logits
-                    .get(seq_len - 1)
-                    .map_err(|e| format!("Get last logits failed: {}", e))?
-            }
-            // anything else is unexpected
-            other => {
-                return Err(format!(
-                    "Unexpected logits shape {:?}, expected [vocab] or [seq_len, vocab].",
-                    other
-                ));
-            }
-        };
-
-        let last_dims = last_logits.dims();
-        if last_dims.is_empty() {
-            return Err("Last-step logits are scalar (rank 0), cannot sample.".to_string());
-        }
-
-        // 4. Sample next token
-        let next_token = logits_processor
-            .sample(&last_logits)
-            .map_err(|e| format!("Sampling failed: {}", e))? as u32;
-
-        // Stop on EOS
-        if next_token == QWEN2_EOS {
+        // Check for EOS
+        if model.is_eog_token(token) {
             break;
         }
 
-        all_tokens.push(next_token);
-        generated_tokens.push(next_token);
+        // Decode token to string
+        let piece = model
+            .token_to_str(token, Special::Plaintext)
+            .map_err(|e| format!("Failed to decode token: {}", e))?;
+        output.push_str(&piece);
+        tokens_generated += 1;
+
+        // Prepare batch for next token
+        batch.clear();
+        batch
+            .add(token, n_past, &[0], true)
+            .map_err(|e| format!("Failed to add token to batch: {}", e))?;
+
+        // Decode next token
+        ctx.decode(&mut batch)
+            .map_err(|e| format!("Decode failed: {}", e))?;
+        n_past += 1;
     }
 
-    // 5. Decode generated tokens
-    let response = tokenizer
-        .decode(&generated_tokens, true)
-        .map_err(|e| format!("Decoding failed: {}", e))?;
+    let total_time_ms = start_time.elapsed().as_millis() as u64;
+    let tps = if total_time_ms > ttft_ms {
+        (tokens_generated as f32) / ((total_time_ms - ttft_ms) as f32 / 1000.0)
+    } else {
+        0.0
+    };
 
-    Ok(response)
+    Ok(InferenceResult {
+        content: output,
+        metrics: InferenceMetrics {
+            ttft_ms,
+            tps,
+            total_tokens: tokens_generated,
+            total_time_ms,
+        },
+    })
 }
 
-/// Scan a directory for GGUF model files
 pub fn scan_for_models(directory: &str) -> Result<Vec<String>, String> {
     let path = Path::new(directory);
 

@@ -45,7 +45,6 @@ export function Onboarding({ userId, onComplete }: { userId?: number; onComplete
     const handleProfileComplete = async (profileData: { name: string; university: string }) => {
         const finalData = { ...data, ...profileData };
         try {
-            // persist profile immediately so it exists when onboarding ends
             if (userId) {
                 await invoke('set_user_profile', {
                     profile: {
@@ -58,7 +57,7 @@ export function Onboarding({ userId, onComplete }: { userId?: number; onComplete
             }
 
             await invoke('set_onboarding_state', {
-                data: {
+                onboardingState: {
                     completed: true,
                     ai_provider: finalData.aiProvider,
                     ai_api_key: finalData.aiApiKey,
@@ -76,21 +75,21 @@ export function Onboarding({ userId, onComplete }: { userId?: number; onComplete
     };
 
     return (
-        <div className="fixed inset-0 z-50 bg-bg-primary flex items-center justify-center p-6">
-            <div className="w-full max-w-xl bg-bg-surface border border-border rounded-lg overflow-hidden flex flex-col max-h-[80vh]">
+        <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm grid place-items-center">
+            <div className="w-[500px] max-h-[90vh] bg-[#1a1a1a] border border-white/10 rounded-2xl shadow-2xl flex flex-col">
                 {/* Step indicator */}
-                <div className="flex items-center gap-1 p-4 border-b border-border">
+                <div className="flex items-center gap-1.5 px-6 py-4 border-b border-white/10">
                     {steps.map((s, i) => (
                         <div
                             key={s}
-                            className={`h-1 flex-1 rounded-full transition-colors ${i <= currentIndex ? 'bg-accent' : 'bg-border'
+                            className={`h-1 flex-1 rounded-full transition-colors ${i <= currentIndex ? 'bg-accent' : 'bg-white/20'
                                 }`}
                         />
                     ))}
                 </div>
 
-                {/* Content */}
-                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                {/* Content area - centered with flex */}
+                <div className="flex-1 min-h-0 overflow-y-auto p-6 flex flex-col justify-center">
                     {step === 'welcome' && <WelcomeStep onNext={handleWelcomeNext} />}
                     {step === 'ai' && <AISetupStep onNext={handleAINext} onBack={() => setStep('welcome')} />}
                     {step === 'db' && <DatabaseSetupStep onNext={handleDBNext} onBack={() => setStep('ai')} />}

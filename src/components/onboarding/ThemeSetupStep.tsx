@@ -37,22 +37,22 @@ export function ThemeSetupStep({ onNext, onBack }: ThemeSetupStepProps) {
     };
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col">
             {/* Header */}
-            <div className="mb-8">
-                <h2 className="text-xl font-bold text-text-primary mb-2">Appearance</h2>
-                <p className="text-sm text-text-secondary font-mono">Customize your look.</p>
+            <div className="mb-6">
+                <h2 className="text-xl font-bold text-text-primary mb-1">Appearance</h2>
+                <p className="text-sm text-text-secondary">Customize your look.</p>
             </div>
 
             {/* Theme Mode */}
-            <div className="space-y-3 mb-6">
-                <label className="block text-xs text-text-secondary font-mono">Mode</label>
+            <div className="mb-5">
+                <label className="block text-xs text-text-secondary mb-2">Mode</label>
                 <div className="grid grid-cols-2 gap-3">
                     <button
                         onClick={() => handleModeChange('light')}
                         className={`p-3 rounded-lg border flex items-center justify-center gap-2 transition-all ${mode === 'light'
                                 ? 'border-accent bg-accent/10 text-text-primary'
-                                : 'border-border bg-bg-surface text-text-tertiary hover:border-text-tertiary'
+                                : 'border-white/10 bg-white/5 text-text-secondary hover:border-white/20'
                             }`}
                     >
                         <Sun size={16} />
@@ -62,7 +62,7 @@ export function ThemeSetupStep({ onNext, onBack }: ThemeSetupStepProps) {
                         onClick={() => handleModeChange('dark')}
                         className={`p-3 rounded-lg border flex items-center justify-center gap-2 transition-all ${mode === 'dark'
                                 ? 'border-accent bg-accent/10 text-text-primary'
-                                : 'border-border bg-bg-surface text-text-tertiary hover:border-text-tertiary'
+                                : 'border-white/10 bg-white/5 text-text-secondary hover:border-white/20'
                             }`}
                     >
                         <Moon size={16} />
@@ -72,14 +72,14 @@ export function ThemeSetupStep({ onNext, onBack }: ThemeSetupStepProps) {
             </div>
 
             {/* Accent Color */}
-            <div className="space-y-3 mb-6">
-                <label className="block text-xs text-text-secondary font-mono">Accent</label>
+            <div className="mb-6">
+                <label className="block text-xs text-text-secondary mb-2">Accent</label>
                 <div className="flex gap-2">
                     {ACCENT_COLORS.map((color) => (
                         <button
                             key={color.id}
                             onClick={() => handleAccentChange(color.id)}
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${accent === color.id ? 'ring-2 ring-white ring-offset-2 ring-offset-bg-surface' : ''
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${accent === color.id ? 'ring-2 ring-white ring-offset-2 ring-offset-[#1a1a1a]' : ''
                                 }`}
                             style={{ backgroundColor: color.hex }}
                         >
@@ -90,8 +90,8 @@ export function ThemeSetupStep({ onNext, onBack }: ThemeSetupStepProps) {
             </div>
 
             {/* Navigation */}
-            <div className="flex justify-between mt-auto">
-                <button onClick={onBack} className="px-4 py-2 text-sm text-text-tertiary hover:text-text-primary transition-colors flex items-center gap-1">
+            <div className="flex justify-between mt-auto pt-4">
+                <button onClick={onBack} className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors flex items-center gap-1">
                     <ArrowLeft size={14} /> Back
                 </button>
                 <button onClick={onNext} className="px-4 py-2 bg-accent text-black rounded-md text-sm font-medium flex items-center gap-1 hover:opacity-90">
