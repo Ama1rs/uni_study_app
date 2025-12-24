@@ -55,11 +55,11 @@ export function Calendar() {
 
         try {
             await invoke('create_planner_event', {
-                repositoryId: null, // Global event for now
+                repository_id: null, // Global event for now
                 title: newEventTitle,
                 description: newEventDesc,
-                startAt: startDateTime.toISOString(),
-                endAt: endDateTime.toISOString(),
+                start_at: startDateTime.toISOString(),
+                end_at: endDateTime.toISOString(),
                 recurrence: null
             });
             setNewEventTitle('');

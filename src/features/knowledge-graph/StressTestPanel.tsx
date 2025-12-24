@@ -21,9 +21,9 @@ export function StressTestPanel({ repositoryId, onComplete }: StressTestPanelPro
         setError(null);
         try {
             await invoke('generate_large_graph', {
-                repositoryId,
-                nodeCount: parseInt(nodeCount.toString()),
-                edgesPerNode: parseInt(edgesPerNode.toString())
+                repository_id: repositoryId,
+                node_count: parseInt(nodeCount.toString()),
+                edges_per_node: parseInt(edgesPerNode.toString())
             });
             onComplete();
             alert('Graph generation complete!');

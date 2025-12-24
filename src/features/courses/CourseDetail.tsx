@@ -102,7 +102,7 @@ export function CourseDetail({ course, onBack }: CourseDetailProps) {
         try {
             // Tauri commands expect camelCase arg names (repositoryId)
             await invoke('create_lecture', {
-                repositoryId: course.id,
+                repository_id: course.id,
                 title: newLectureTitle,
                 url: newLectureUrl,
                 thumbnail
@@ -125,8 +125,8 @@ export function CourseDetail({ course, onBack }: CourseDetailProps) {
 
         try {
             await invoke('import_resource', {
-                repositoryId: course.id,
-                filePath: path
+                repository_id: course.id,
+                file_path: path
             });
             loadResources();
         } catch (e) {
@@ -138,7 +138,7 @@ export function CourseDetail({ course, onBack }: CourseDetailProps) {
         if (!noteContent) return;
         try {
             await invoke('process_text_to_nodes', {
-                repositoryId: course.id,
+                repository_id: course.id,
                 text: noteContent
             });
             setNoteContent('');

@@ -1,10 +1,12 @@
 mod conversion;
 mod db;
 mod db_manager;
+mod image_tools;
 mod finance;
 mod grades;
 mod inference;
 mod ollama;
+mod pdf_tools;
 mod projection;
 
 use argon2::{
@@ -450,6 +452,102 @@ fn create_resource(
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
     db::create_resource(&conn, repository_id, title, type_, path, content, tags)
+}
+
+#[derive(Serialize, Deserialize)]
+struct AddResourcePayload {
+    #[serde(rename = "repositoryId")]
+    repository_id: i64,
+    title: String,
+    #[serde(rename = "resourceType")]
+    resource_type: String,
+    content: Option<String>,
+}
+
+#[tauri::command]
+fn add_resource(state: State<DbState>, payload: AddResourcePayload) -> Result<Resource, String> {
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
+
+    let id = db::create_resource(
+        &conn,
+        Some(payload.repository_id),
+        payload.title,
+        payload.resource_type,
+        None,
+        payload.content,
+        None,
+    )?;
+
+    let resources = db::get_resources(&conn, Some(payload.repository_id))?;
+    let created = resources
+        .into_iter()
+        .find(|r| r.id == id)
+        .ok_or("Failed to fetch created resource")?;
+
+    Ok(Resource {
+        id: created.id,
+        repository_id: created.repository_id,
+        title: created.title,
+        type_: created.type_,
+        path: created.path,
+        content: created.content,
+        tags: created.tags,
+        created_at: created.created_at,
+    })
+}
+
+#[tauri::command]
+fn image_resize(
+    input_path: String,
+    output_path: String,
+    width: u32,
+    height: u32,
+    mode: String,
+) -> Result<String, String> {
+    image_tools::image_resize(input_path, output_path, width, height, mode)
+}
+
+#[tauri::command]
+fn image_convert(input_path: String, output_path: String) -> Result<String, String> {
+    image_tools::image_convert(input_path, output_path)
+}
+
+#[tauri::command]
+fn image_batch_optimize(
+    input_paths: Vec<String>,
+    output_dir: String,
+    jpeg_quality: Option<u8>,
+) -> Result<Vec<String>, String> {
+    image_tools::image_batch_optimize(input_paths, output_dir, jpeg_quality)
+}
+
+#[tauri::command]
+fn pdf_merge(input_paths: Vec<String>, output_path: String) -> Result<String, String> {
+    pdf_tools::pdf_merge(input_paths, output_path)
+}
+
+#[tauri::command]
+fn pdf_extract_pages(
+    input_path: String,
+    pages_spec: String,
+    output_path: String,
+) -> Result<String, String> {
+    pdf_tools::pdf_extract_pages(input_path, pages_spec, output_path)
+}
+
+#[tauri::command]
+fn pdf_compress(
+    input_path: String,
+    output_path: String,
+    compression_level: Option<u8>,
+) -> Result<String, String> {
+    pdf_tools::pdf_compress(input_path, output_path, compression_level)
+}
+
+#[tauri::command]
+fn pdf_to_markdown(input_path: String, output_path: String) -> Result<String, String> {
+    pdf_tools::pdf_to_markdown(input_path, output_path)
 }
 
 #[tauri::command]
@@ -1167,8 +1265,16 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             read_file_base64,
+            add_resource,
             create_resource,
             get_resources,
+            image_resize,
+            image_convert,
+            image_batch_optimize,
+            pdf_merge,
+            pdf_extract_pages,
+            pdf_compress,
+            pdf_to_markdown,
             create_link,
             get_links,
             import_resource,

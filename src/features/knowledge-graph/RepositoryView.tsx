@@ -199,8 +199,8 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
 
             if (selected && typeof selected === 'string') {
                 await invoke('import_resource', {
-                    repositoryId: repository.id,
-                    filePath: selected
+                    repository_id: repository.id,
+                    file_path: selected
                 });
                 loadData();
             }
@@ -225,14 +225,14 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
     async function addNote(content: string) {
         try {
             await invoke('process_text_to_nodes', {
-                repositoryId: repository.id,
+                repository_id: repository.id,
                 text: content
             });
             setShowAddNote(false);
             setNoteContent('');
             loadData();
-        } catch (e: any) {
-            console.error(e);
+        } catch (e) {
+            console.error("Failed to add note:", e);
         }
     }
 

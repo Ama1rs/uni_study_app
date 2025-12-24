@@ -42,7 +42,7 @@ export function StudioPage({ onViewResource }: StudioPageProps) {
 
     async function loadRecentResources() {
         try {
-            const res = await invoke<Resource[]>('get_resources', { repositoryId: null });
+            const res = await invoke<Resource[]>('get_resources', { repository_id: null });
             setRecentCreations(res.slice(0, 4));
         } catch (e) {
             console.error("Failed to load resources:", e);

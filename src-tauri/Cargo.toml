@@ -32,6 +32,10 @@ argon2 = "0.5"
 rand_core = { version = "0.6", features = ["getrandom"] }
 base64 = "0.22"
 
+lopdf = "0.38.0"
+image = "0.25"
+oxipng = "10"
+
 # llama.cpp bindings
 llama-cpp-2 = "0.1.68"
 llama-cpp-sys-2 = "0.1.68"
