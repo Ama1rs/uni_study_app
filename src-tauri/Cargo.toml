@@ -37,7 +37,7 @@ image = "0.25"
 oxipng = "10"
 
 # llama.cpp bindings
-llama-cpp-2 = "0.1.68"
-llama-cpp-sys-2 = "0.1.68"
+llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", branch = "main" }
+llama-cpp-sys-2 = { git = "https://github.com/utilityai/llama-cpp-rs", branch = "main" }
 
 

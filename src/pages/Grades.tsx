@@ -96,8 +96,8 @@ export function Grades() {
             setScales(s || []);
         } catch (e) {
             console.error('[Grades] ✗ Failed to fetch grading scales:', e);
-            setError('No grading scales found. Please run database migrations.');
-            throw e;
+            setError('No grading scales found. Please check your database setup.');
+            // Don't throw - allow the app to continue
         }
     }
 
@@ -319,7 +319,7 @@ export function Grades() {
                                     defaultValue={projection?.target_cgpa && !isNaN(projection.target_cgpa) ? projection.target_cgpa : 9.0}
                                     onBlur={(e) => {
                                         const val = parseFloat(e.target.value);
-                                        if (!isNaN(val)) invoke('save_projection_settings', { target_cgpa: val, horizon: projection?.horizon });
+                                        if (!isNaN(val)) invoke('save_projection_settings', { targetCgpa: val, horizon: projection?.horizon });
                                         // Trigger refresh after brief delay or immediately
                                         setTimeout(refreshAll, 100);
                                     }}
@@ -341,7 +341,7 @@ export function Grades() {
                                             const val = parseInt(e.target.value);
                                             // Backend uses 'horizon' as INTEGER (semesters? or credits? implementation plan said semesters, backend logic ignored it in calc actually? No it used horizon from DB)
                                             // Wait, `project_grades` logic uses `program_credits - points`. Horizon is for Viz?
-                                            if (!isNaN(val)) invoke('save_projection_settings', { target_cgpa: projection?.target_cgpa, horizon: val });
+                                            if (!isNaN(val)) invoke('save_projection_settings', { targetCgpa: projection?.target_cgpa, horizon: val });
                                             setTimeout(refreshAll, 100);
                                         }}
                                     />

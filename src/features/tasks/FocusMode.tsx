@@ -121,7 +121,7 @@ export function FocusMode() {
         if (currentSessionId) {
             const endAt = new Date().toISOString();
             const duration = sessionType === 'stopwatch' ? elapsedTime : (sessionType === 'focus' ? 25 * 60 : 5 * 60);
-            await invoke('stop_study_session', { id: currentSessionId, end_at: endAt, duration });
+            await invoke('stop_study_session', { id: currentSessionId, endAt: endAt, duration });
             setCurrentSessionId(null);
             // Refresh data
             loadInitialData();

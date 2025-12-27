@@ -23,6 +23,7 @@ export function Calendar() {
     const [newEventTitle, setNewEventTitle] = useState('');
     const [newEventDesc, setNewEventDesc] = useState('');
     const [newEventTime, setNewEventTime] = useState('09:00');
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         loadEvents();
@@ -43,6 +44,7 @@ export function Calendar() {
 
     async function addEvent() {
         if (!newEventTitle) return;
+        setError(null);
 
         // Construct ISO string for start_at
         const startDateTime = new Date(selectedDate);
@@ -55,18 +57,24 @@ export function Calendar() {
 
         try {
             await invoke('create_planner_event', {
-                repository_id: null, // Global event for now
-                title: newEventTitle,
-                description: newEventDesc,
-                start_at: startDateTime.toISOString(),
-                end_at: endDateTime.toISOString(),
-                recurrence: null
+                payload: {
+                    repositoryId: null,
+                    title: newEventTitle,
+                    description: newEventDesc,
+                    startAt: startDateTime.toISOString(),
+                    endAt: endDateTime.toISOString(),
+                    recurrence: null
+                }
             });
             setNewEventTitle('');
             setNewEventDesc('');
             setShowAddEvent(false);
             loadEvents();
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            const errorMsg = e instanceof Error ? e.message : String(e);
+            setError(errorMsg);
+            console.error('Error creating event:', errorMsg);
+        }
     }
 
     async function deleteEvent(id: number, e: React.MouseEvent) {
@@ -236,6 +244,14 @@ export function Calendar() {
                             Add Event - {selectedDate.toLocaleDateString()}
                         </h3>
 
+                        {error && (
+                            <div className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/50 text-red-200 text-sm">
+                                {error === 'No active user session found' 
+                                    ? 'You must be logged in to create events. Please log in first.'
+                                    : error}
+                            </div>
+                        )}
+
                         <div className="space-y-3">
                             <input
                                 className="w-full px-4 py-2 rounded-lg outline-none border bg-transparent"
@@ -262,7 +278,7 @@ export function Calendar() {
                         </div>
 
                         <div className="flex justify-end gap-2 mt-6">
-                            <button onClick={() => setShowAddEvent(false)} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-secondary)' }}>Cancel</button>
+                            <button onClick={() => { setShowAddEvent(false); setError(null); }} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-secondary)' }}>Cancel</button>
                             <button onClick={addEvent} className="px-4 py-2 rounded-lg text-sm text-white" style={{ backgroundColor: 'var(--accent)' }}>Create Event</button>
                         </div>
                     </div>

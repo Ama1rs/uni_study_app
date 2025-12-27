@@ -30,7 +30,7 @@ export function NodeDetailPanel({ nodeId, title, type, onClose, onMetadataChange
     async function loadMetadata() {
         setLoading(true);
         try {
-            const data = await invoke<ResourceMetadata | null>('get_resource_metadata_cmd', { resource_id: nodeId });
+            const data = await invoke<ResourceMetadata | null>('get_resource_metadata_cmd', { resourceId: nodeId });
             if (data) {
                 setMetadata(data);
             } else {
@@ -60,10 +60,10 @@ export function NodeDetailPanel({ nodeId, title, type, onClose, onMetadataChange
         }
     }
 
-    if (loading) return <div className="w-80 h-full border-l border-white/10 bg-black/40 backdrop-blur-md p-6 absolute right-0 top-0 z-20 flex items-center justify-center">Loading...</div>;
+    if (loading) return <div className="w-80 h-full border-l border-border bg-bg-surface backdrop-blur-md p-6 absolute right-0 top-0 z-20 flex items-center justify-center text-text-secondary">Loading...</div>;
 
     return (
-        <div className="w-80 h-full border-l bg-bg-surface p-6 absolute right-0 top-0 z-30 flex flex-col shadow-2xl transition-all" style={{ borderColor: 'var(--border)' }}>
+        <div className="w-80 h-full border-l border-border bg-bg-surface p-6 absolute right-0 top-0 z-30 flex flex-col shadow-2xl transition-all" style={{ borderColor: 'var(--border)' }}>
             <div className="flex justify-between items-start mb-6">
                 <div>
                     <h2 className="text-xl font-bold text-text-primary leading-tight">{title}</h2>
@@ -77,15 +77,15 @@ export function NodeDetailPanel({ nodeId, title, type, onClose, onMetadataChange
             <div className="space-y-6 overflow-y-auto flex-1 pr-2">
                 {/* Importance */}
                 <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-medium text-text-secondary">
+                <div className="flex items-center gap-2 text-sm font-medium text-text-secondary">
                         <Star size={14} /> Importance
                     </div>
-                    <div className="flex gap-1" onMouseLeave={() => { /* logic if hover needed */ }}>
+                    <div className="flex gap-1">
                         {[1, 2, 3, 4, 5].map(rating => (
                             <button
                                 key={rating}
                                 onClick={() => saveMetadata({ ...metadata, importance: rating })}
-                                className={`p-1.5 rounded-full transition-all ${metadata.importance >= rating ? 'text-yellow-400 scale-110' : 'text-gray-600 hover:text-yellow-400/50'}`}
+                                className={`p-1.5 rounded-full transition-all ${metadata.importance >= rating ? 'text-accent scale-110' : 'text-text-tertiary hover:text-accent/50'}`}
                             >
                                 <Star size={18} fill={metadata.importance >= rating ? "currentColor" : "none"} />
                             </button>
@@ -104,8 +104,8 @@ export function NodeDetailPanel({ nodeId, title, type, onClose, onMetadataChange
                                 key={s}
                                 onClick={() => saveMetadata({ ...metadata, status: s })}
                                 className={`px-2 py-1.5 rounded-lg text-xs font-medium border transition-all ${metadata.status === s
-                                    ? s === 'mastered' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : s === 'reviewing' ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-gray-500/20 text-gray-400 border-gray-500/50'
-                                    : 'border-transparent hover:bg-white/5 text-text-tertiary'
+                                    ? s === 'mastered' ? 'bg-accent/20 text-accent border-accent/50' : s === 'reviewing' ? 'bg-accent/10 text-accent border-accent/30' : 'bg-border text-text-secondary border-border'
+                                    : 'border-border hover:bg-bg-hover text-text-tertiary'
                                     }`}
                             >
                                 {s.charAt(0).toUpperCase() + s.slice(1)}
@@ -122,7 +122,7 @@ export function NodeDetailPanel({ nodeId, title, type, onClose, onMetadataChange
                     <select
                         value={metadata.difficulty}
                         onChange={(e) => saveMetadata({ ...metadata, difficulty: e.target.value as any })}
-                        className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:border-accent transition-colors"
+                        className="w-full bg-transparent border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:border-accent transition-colors hover:bg-bg-hover"
                     >
                         <option value="beginner">Beginner</option>
                         <option value="intermediate">Intermediate</option>
@@ -140,7 +140,7 @@ export function NodeDetailPanel({ nodeId, title, type, onClose, onMetadataChange
                         min="0"
                         value={metadata.time_estimate}
                         onChange={(e) => saveMetadata({ ...metadata, time_estimate: parseInt(e.target.value) || 0 })}
-                        className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:border-accent transition-colors"
+                        className="w-full bg-transparent border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:border-accent transition-colors hover:bg-bg-hover"
                     />
                 </div>
             </div>

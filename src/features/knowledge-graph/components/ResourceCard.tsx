@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { FileText, StickyNote, Link as LinkIcon, Edit, Trash2, Video, Image as ImageIcon, File as FileIcon } from 'lucide-react';
+import { FileText, StickyNote, Link as LinkIcon, Edit, Trash2, Video, Image as ImageIcon, File as FileIcon, Tag } from 'lucide-react';
 import { Resource } from '../RepositoryView';
 import { itemVariants } from '@/lib/animations';
 
@@ -7,9 +7,10 @@ interface ResourceCardProps {
     res: Resource;
     onOpen: (res: Resource) => void;
     onDelete: (e: React.MouseEvent, id: number) => void;
+    onEditTags: (res: Resource) => void;
 }
 
-export function ResourceCard({ res, onOpen, onDelete }: ResourceCardProps) {
+export function ResourceCard({ res, onOpen, onDelete, onEditTags }: ResourceCardProps) {
     return (
         <motion.div
             className="rounded-2xl overflow-hidden cursor-pointer flex flex-col relative border border-border/50 bg-bg-surface/30 hover:bg-bg-surface hover:border-accent/40 hover:shadow-xl hover:shadow-accent/5 transition-all duration-300 transform group"
@@ -61,6 +62,18 @@ export function ResourceCard({ res, onOpen, onDelete }: ResourceCardProps) {
                         </motion.button>
                     )}
                     <motion.button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onEditTags(res);
+                        }}
+                        className="p-2 rounded-xl bg-black/60 text-white/70 hover:text-blue-400 hover:bg-black/80 transition-all backdrop-blur-sm z-10"
+                        title="Edit Tags"
+                        whileHover={{ scale: 1.1, backgroundColor: 'rgba(0, 0, 0, 0.9)' }}
+                        whileTap={{ scale: 0.95 }}
+                    >
+                        <Tag size={16} />
+                    </motion.button>
+                    <motion.button
                         onClick={(e) => onDelete(e, res.id)}
                         className="p-2 rounded-xl bg-black/60 text-white/70 hover:text-red-400 hover:bg-black/80 transition-all backdrop-blur-sm z-10"
                         title="Delete"
@@ -91,14 +104,15 @@ export function ResourceCard({ res, onOpen, onDelete }: ResourceCardProps) {
                     >
                         {res.type}
                     </motion.span>
-                    {res.tags && (
+                    {res.tags && res.tags.split(',').map(tag => tag.trim()).filter(tag => tag).map((tag, index) => (
                         <motion.span
-                            className="text-xs px-2 py-1 rounded bg-white/5 text-gray-400"
+                            key={index}
+                            className="text-xs px-2 py-1 rounded bg-accent/10 text-accent ml-1"
                             whileHover={{ scale: 1.05 }}
                         >
-                            #{res.tags}
+                            #{tag}
                         </motion.span>
-                    )}
+                    ))}
                 </div>
             </motion.div>
         </motion.div>

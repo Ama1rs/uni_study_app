@@ -642,54 +642,45 @@ fn import_resource(
 }
 
 #[tauri::command]
+#[allow(non_snake_case)]
 fn process_text_to_nodes(
     state: State<DbState>,
-    repository_id: i64,
+    repositoryId: i64,
     text: String,
+    tags: Option<String>,
 ) -> Result<Vec<i64>, String> {
     println!(
         "Backend: process_text_to_nodes called. Repo: {}, Text len: {}",
-        repository_id,
+        repositoryId,
         text.len()
     );
-    // Simple heuristic: split by double newlines
-    let chunks: Vec<&str> = text
-        .split("\n\n")
-        .filter(|s| !s.trim().is_empty())
-        .collect();
-
-    let mut created_ids = Vec::new();
-    let mut prev_id = None;
-
-    for chunk in chunks.iter() {
-        let title = if chunk.len() > 30 {
-            format!("{}...", &chunk[0..30])
+    // Create a single note with the full text instead of splitting
+    // This preserves markdown formatting and keeps content intact
+    let title = if text.len() > 50 {
+        // Extract first line or first 50 chars as title
+        let first_line = text.lines().next().unwrap_or("").trim();
+        if !first_line.is_empty() && first_line.len() > 3 {
+            first_line.chars().take(50).collect::<String>()
         } else {
-            chunk.to_string()
-        };
-
-        let conn_arc = state.db_manager.get_active_profile_db()?;
-        let conn = conn_arc.lock().unwrap();
-        let id = db::create_resource(
-            &conn,
-            Some(repository_id),
-            title,
-            "note".to_string(),
-            None,
-            Some(chunk.to_string()),
-            Some("auto-generated".to_string()),
-        )?;
-
-        created_ids.push(id);
-
-        // Link to previous node
-        if let Some(pid) = prev_id {
-            let _ = db::create_link(&conn, pid, id);
+            format!("{}...", &text.chars().take(50).collect::<String>())
         }
-        prev_id = Some(id);
-    }
+    } else {
+        text.clone()
+    };
 
-    Ok(created_ids)
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
+    let id = db::create_resource(
+        &conn,
+        Some(repositoryId),
+        title,
+        "note".to_string(),
+        None,
+        Some(text),
+        tags,
+    )?;
+
+    Ok(vec![id])
 }
 
 #[tauri::command]
@@ -697,11 +688,8 @@ fn get_user_profile(state: State<DbState>) -> Result<UserProfile, String> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
 
-    // Check if profile exists for user, if not create default
-    // Wait, register_user creates it. But maybe migration needs to handle it.
-    // Assuming it exists or migration made it.
-
-    conn.query_row(
+    // Try to get existing profile
+    let result = conn.query_row(
         "SELECT user_id, name, university, avatar_path FROM user_profiles LIMIT 1",
         [],
         |row| {
@@ -712,8 +700,40 @@ fn get_user_profile(state: State<DbState>) -> Result<UserProfile, String> {
                 avatar_path: row.get(3)?,
             })
         },
-    )
-    .map_err(|e| e.to_string())
+    );
+
+    match result {
+        Ok(profile) => Ok(profile),
+        Err(_) => {
+            // Profile doesn't exist, create a default one
+            // Get current user ID from session
+            let global_conn = state.db_manager.get_global_conn();
+            let global_conn_lock = global_conn.lock().unwrap();
+            let user_id: i64 = global_conn_lock
+                .query_row(
+                    "SELECT current_user_id FROM session_state WHERE id = 1",
+                    [],
+                    |row| row.get(0),
+                )
+                .map_err(|e| format!("Failed to get current user ID: {}", e))?;
+
+            drop(global_conn_lock);
+
+            // Insert default profile
+            conn.execute(
+                "INSERT INTO user_profiles (user_id, name, university) VALUES (?1, ?2, ?3)",
+                (user_id, "Student", ""),
+            )
+            .map_err(|e| format!("Failed to create default profile: {}", e))?;
+
+            Ok(UserProfile {
+                id: user_id,
+                name: Some("Student".to_string()),
+                university: Some("".to_string()),
+                avatar_path: None,
+            })
+        }
+    }
 }
 
 #[tauri::command]
@@ -893,26 +913,34 @@ fn delete_task(state: State<DbState>, id: i64) -> Result<(), String> {
 }
 
 // ---------- Planner Commands ----------
-#[tauri::command]
-fn create_planner_event(
-    state: State<DbState>,
+#[derive(Serialize, Deserialize)]
+struct CreatePlannerEventPayload {
+    #[serde(rename = "repositoryId")]
     repository_id: Option<i64>,
     title: String,
     description: Option<String>,
+    #[serde(rename = "startAt")]
     start_at: String,
+    #[serde(rename = "endAt")]
     end_at: String,
     recurrence: Option<String>,
+}
+
+#[tauri::command]
+fn create_planner_event(
+    state: State<DbState>,
+    payload: CreatePlannerEventPayload,
 ) -> Result<i64, String> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
     db::create_planner_event(
         &conn,
-        repository_id,
-        title,
-        description,
-        start_at,
-        end_at,
-        recurrence,
+        payload.repository_id,
+        payload.title,
+        payload.description,
+        payload.start_at,
+        payload.end_at,
+        payload.recurrence,
     )
 }
 
@@ -1249,6 +1277,158 @@ async fn generate_flashcards(
     result
 }
 
+#[derive(Deserialize)]
+struct DocumentGenerationRequest {
+    title: String,
+    topic: String,
+    description: String,
+    target_audience: String,
+    tone: String,
+    length: String,
+    language: String,
+    document_type: String,
+    formatting: String,
+    section_structure: String,
+    reference_material: Option<String>,
+}
+
+#[tauri::command]
+async fn generate_document(
+    model_state: State<'_, SharedModelState>,
+    request: DocumentGenerationRequest,
+) -> Result<inference::InferenceResult, String> {
+    let system_prompt = format!(
+        "You are an expert content creator specializing in educational materials. \
+        Create a {} document in {} format for a {} audience. \
+        The tone should be {}. The length should be {}. \
+        Use {} language. Structure: {}.",
+        request.document_type,
+        request.formatting,
+        request.target_audience,
+        request.tone,
+        request.length,
+        request.language,
+        request.section_structure
+    );
+
+    let reference_text = request.reference_material
+        .filter(|s| !s.is_empty())
+        .map(|s| format!("\n\nReference material:\n{}", s))
+        .unwrap_or_default();
+
+    let prompt = format!(
+        "<|im_start|>system\n{}<|im_end|>\n<|im_start|>user\n\
+        Title: {}\n\
+        Topic: {}\n\
+        Description: {}\n\
+        {}\n\
+        Please generate the complete document.<|im_end|>\n<|im_start|>assistant\n",
+        system_prompt,
+        request.title,
+        request.topic,
+        request.description,
+        reference_text
+    );
+
+    let max_tokens = match request.length.as_str() {
+        "short" => 1024,
+        "medium" => 2048,
+        "long" => 4096,
+        _ => 2048,
+    };
+
+    let temperature = 0.7; // Balanced creativity and coherence
+
+    let state = model_state.inner().clone();
+
+    let result = tokio::task::spawn_blocking(move || {
+        inference::generate_response(&state, &prompt, max_tokens, temperature)
+    })
+    .await
+    .map_err(|e| format!("Generation worker panicked: {}", e))?;
+
+    result
+}
+
+#[derive(Deserialize)]
+struct PresentationGenerationRequest {
+    title: String,
+    topic: String,
+    description: String,
+    target_audience: String,
+    tone: String,
+    slide_count: String,
+    language: String,
+    slide_style: String,
+    bullet_preference: String,
+    include_speaker_notes: bool,
+    reference_material: Option<String>,
+}
+
+#[tauri::command]
+async fn generate_presentation(
+    model_state: State<'_, SharedModelState>,
+    request: PresentationGenerationRequest,
+) -> Result<inference::InferenceResult, String> {
+    let speaker_notes_instruction = if request.include_speaker_notes {
+        "Include detailed speaker notes for each slide."
+    } else {
+        ""
+    };
+
+    let system_prompt = format!(
+        "You are an expert presentation designer. \
+        Create a {} presentation with {} slides in {} style. \
+        Target audience: {}. Tone: {}. Bullet points: {}. \
+        Language: {}. {}",
+        request.slide_style,
+        request.slide_count,
+        request.slide_style,
+        request.target_audience,
+        request.tone,
+        request.bullet_preference,
+        request.language,
+        speaker_notes_instruction
+    );
+
+    let reference_text = request.reference_material
+        .filter(|s| !s.is_empty())
+        .map(|s| format!("\n\nReference material:\n{}", s))
+        .unwrap_or_default();
+
+    let prompt = format!(
+        "<|im_start|>system\n{}<|im_end|>\n<|im_start|>user\n\
+        Title: {}\n\
+        Topic: {}\n\
+        Description: {}\n\
+        {}\n\
+        Generate a complete presentation with {} slides. \
+        Format each slide with a title and content. \
+        {}\
+        <|im_end|>\n<|im_start|>assistant\n",
+        system_prompt,
+        request.title,
+        request.topic,
+        request.description,
+        request.slide_count,
+        reference_text,
+        if request.include_speaker_notes { "Include speaker notes for each slide.\n" } else { "" }
+    );
+
+    let max_tokens = 4096; // Presentations need more tokens
+    let temperature = 0.7;
+
+    let state = model_state.inner().clone();
+
+    let result = tokio::task::spawn_blocking(move || {
+        inference::generate_response(&state, &prompt, max_tokens, temperature)
+    })
+    .await
+    .map_err(|e| format!("Generation worker panicked: {}", e))?;
+
+    result
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1362,6 +1542,8 @@ pub fn run() {
             get_all_flashcards,
             delete_flashcard,
             generate_flashcards,
+            generate_document,
+            generate_presentation,
             // Finance
             get_finance_summary,
             create_finance_transaction,

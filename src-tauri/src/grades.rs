@@ -1,4 +1,4 @@
-use crate::db_manager::DbState;
+use crate::DbState;
 
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -310,7 +310,51 @@ pub fn get_gpa_summary(state: State<DbState>) -> Result<GradeSummary, String> {
 /// Returns scales ordered by is_default DESC (default scales first)
 #[tauri::command]
 pub fn get_grading_scales(state: State<DbState>) -> Result<Vec<GradingScale>, String> {
-    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn_arc = match state.db_manager.get_active_profile_db() {
+        Ok(conn) => conn,
+        Err(e) => {
+            println!("No active profile db: {}", e);
+            // Return default scales if no profile db
+            return Ok(vec![
+                GradingScale {
+                    id: 1,
+                    name: "Standard 10-point".to_string(),
+                    type_: "numeric".to_string(),
+                    config: GradingScaleConfig {
+                        max_point: 10.0,
+                        mappings: vec![
+                            GradingScaleMapping { min_percent: Some(90), letter: None, point: 10.0 },
+                            GradingScaleMapping { min_percent: Some(80), letter: None, point: 9.0 },
+                            GradingScaleMapping { min_percent: Some(70), letter: None, point: 8.0 },
+                            GradingScaleMapping { min_percent: Some(60), letter: None, point: 7.0 },
+                            GradingScaleMapping { min_percent: Some(50), letter: None, point: 6.0 },
+                            GradingScaleMapping { min_percent: Some(40), letter: None, point: 5.0 },
+                        ],
+                    },
+                    is_default: true,
+                },
+                GradingScale {
+                    id: 2,
+                    name: "US 4.0 Scale".to_string(),
+                    type_: "letter".to_string(),
+                    config: GradingScaleConfig {
+                        max_point: 4.0,
+                        mappings: vec![
+                            GradingScaleMapping { min_percent: None, letter: Some("A".to_string()), point: 4.0 },
+                            GradingScaleMapping { min_percent: None, letter: Some("A-".to_string()), point: 3.7 },
+                            GradingScaleMapping { min_percent: None, letter: Some("B+".to_string()), point: 3.3 },
+                            GradingScaleMapping { min_percent: None, letter: Some("B".to_string()), point: 3.0 },
+                            GradingScaleMapping { min_percent: None, letter: Some("B-".to_string()), point: 2.7 },
+                            GradingScaleMapping { min_percent: None, letter: Some("C+".to_string()), point: 2.3 },
+                            GradingScaleMapping { min_percent: None, letter: Some("C".to_string()), point: 2.0 },
+                            GradingScaleMapping { min_percent: None, letter: Some("F".to_string()), point: 0.0 },
+                        ],
+                    },
+                    is_default: false,
+                },
+            ]);
+        }
+    };
     let conn = conn_arc.lock().unwrap();
     let mut stmt = conn
         .prepare("SELECT id, name, type, config, is_default FROM grading_scales ORDER BY is_default DESC, name ASC")

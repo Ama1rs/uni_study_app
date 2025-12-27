@@ -36,7 +36,7 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
             const cmd = mode === 'signin' ? 'login' : 'register_user';
             const user = await invoke<UserPublic>(cmd, { username, password });
             if (remember) {
-                await invoke('set_remembered_user', { user_id: user.id });
+                await invoke('set_remembered_user', { userId: user.id });
             }
             onAuthenticated(user);
         } catch (e: any) {

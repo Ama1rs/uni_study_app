@@ -8,17 +8,17 @@
   --bg-surface: #121212;
   --bg-hover: #1a1a1a;
 
-  --border: rgba(255, 255, 255, 0.06);
-  --border-light: rgba(255, 255, 255, 0.1);
+  --border: rgba(255, 255, 255, 0.04);
+  --border-light: rgba(255, 255, 255, 0.06);
 
   --text-primary: #e0e0e0;
   --text-secondary: #777777;
-  --text-tertiary: #444444;
+  --text-tertiary: #6C6C6C;
 
-  /* Cyan/Teal Accent */
-  --accent: hsl(180, 70%, 55%);
-  --accent-hover: hsl(180, 70%, 45%);
-  --accent-dim: rgba(0, 255, 255, 0.1);
+  /* Primary action accent (green) */
+  --accent: #16A34A; /* green-500 */
+  --accent-hover: #15803D; /* green-600 */
+  --accent-dim: rgba(22, 163, 74, 0.08);
 
   /* Glass Background Default */
   --glass-bg: rgba(18, 18, 18, 0.6);

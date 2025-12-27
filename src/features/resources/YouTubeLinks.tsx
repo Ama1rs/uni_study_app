@@ -43,8 +43,8 @@ export function YouTubeLinks({ repository, onBack }: YouTubeLinksProps) {
         setLoading(true);
         setError(null);
         try {
-            const lectureRes = await invoke<Lecture[]>('get_lectures', { repository_id: repository.id });
-            const resources = await invoke<any[]>('get_resources', { repository_id: repository.id });
+            const lectureRes = await invoke<Lecture[]>('get_lectures', { repositoryId: repository.id });
+            const resources = await invoke<any[]>('get_resources', { repositoryId: repository.id });
             const videoResources = resources
                 .filter(r => {
                     const type = r.type || r.type_;

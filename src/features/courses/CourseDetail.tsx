@@ -66,14 +66,14 @@ export function CourseDetail({ course, onBack }: CourseDetailProps) {
 
     async function loadLectures() {
         try {
-            const res = await invoke<Lecture[]>('get_lectures', { repository_id: course.id });
+            const res = await invoke<Lecture[]>('get_lectures', { repositoryId: course.id });
             setLectures(res);
         } catch (e) { console.error(e); }
     }
 
     async function loadResources() {
         try {
-            const res = await invoke<Resource[]>('get_resources', { repository_id: course.id });
+            const res = await invoke<Resource[]>('get_resources', { repositoryId: course.id });
             setResources(res);
         } catch (e) { console.error(e); }
     }

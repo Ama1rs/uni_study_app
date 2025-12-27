@@ -23,6 +23,9 @@ declare module 'react-force-graph-2d' {
         onNodeRightClick?: (node: any, event: any) => void;
         cooldownTicks?: number;
         d3VelocityDecay?: number;
+        d3AlphaDecay?: number;
+        d3Force?: any; // Access to underlying d3-force simulation
+        onEngineStop?: () => void;
         ref?: any;
     }
 

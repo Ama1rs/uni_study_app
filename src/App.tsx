@@ -10,6 +10,7 @@ import { AuthScreen } from "@/features/auth/AuthScreen";
 import { MainViewRouter } from "@/components/routing/MainViewRouter";
 import { AppSettingsProvider, useAppSettings } from "@/contexts/AppSettingsContext";
 import { UserProfileProvider } from "@/contexts/UserProfileContext";
+import { AIGenerationProvider } from "@/contexts/AIGenerationContext";
 import { useAppInitialization } from "@/hooks/useAppInitialization";
 import { Resource } from "@/types/node-system";
 import { invoke } from "@tauri-apps/api/core";
@@ -145,7 +146,9 @@ export default function App() {
   return (
     <AppSettingsProvider>
       <UserProfileProvider>
-        <AppContent />
+        <AIGenerationProvider>
+          <AppContent />
+        </AIGenerationProvider>
       </UserProfileProvider>
     </AppSettingsProvider>
   );

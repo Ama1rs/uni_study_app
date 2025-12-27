@@ -43,7 +43,7 @@ export function SearchFilterPanel({
                             <button
                                 key={type}
                                 onClick={() => onToggleType(type)}
-                                className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-sm transition-colors ${selectedTypes.includes(type) ? 'bg-accent/10 text-accent' : 'text-text-primary hover:bg-white/5'
+                                className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-sm transition-colors ${selectedTypes.includes(type) ? 'bg-accent/10 border border-accent/50 text-accent' : 'text-text-primary hover:bg-bg-hover border border-transparent'
                                     }`}
                             >
                                 <span className="capitalize">{type}</span>
@@ -61,7 +61,7 @@ export function SearchFilterPanel({
                                 <button
                                     key={status}
                                     onClick={() => onToggleStatus(status)}
-                                    className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-sm transition-colors ${selectedStatus.includes(status) ? 'bg-accent/10 text-accent' : 'text-text-primary hover:bg-white/5'
+                                    className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-sm transition-colors ${selectedStatus.includes(status) ? 'bg-accent/10 border border-accent/50 text-accent' : 'text-text-primary hover:bg-bg-hover border border-transparent'
                                         }`}
                                 >
                                     <span className="capitalize">{status}</span>

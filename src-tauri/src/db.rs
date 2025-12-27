@@ -620,11 +620,11 @@ pub fn get_resources(
     repository_id: Option<i64>,
 ) -> Result<Vec<Resource>, String> {
     let mut query =
-        "SELECT id, repository_id, title, type, path, content, tags, created_at FROM resources"
+        "SELECT id, COALESCE(repository_id, course_id) as repository_id, title, type, path, content, tags, created_at FROM resources"
             .to_string();
 
     if repository_id.is_some() {
-        query.push_str(" WHERE repository_id = ?1");
+        query.push_str(" WHERE COALESCE(repository_id, course_id) = ?1");
     }
     query.push_str(" ORDER BY created_at DESC");
 

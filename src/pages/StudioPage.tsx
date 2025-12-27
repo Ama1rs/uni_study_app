@@ -4,35 +4,22 @@ import { motion } from 'framer-motion';
 import {
     FileText,
     Presentation,
-    Sparkles,
-    ArrowRight,
-    Library,
     Clock,
     Star,
-    ChevronRight,
-    PenTool,
     Plus,
     Search,
-    BookOpen,
-    Cpu
+    PenTool
 } from 'lucide-react';
 import { Resource } from '../types/node-system';
-import { cn } from '../lib/utils';
 import { containerVariants, itemVariants } from '@/lib/animations';
 import { StudioResourceTools } from '@/features/resources/StudioResourceTools';
 
 interface StudioPageProps {
     onViewResource: (res: Resource) => void;
+    setActiveView: (view: string) => void;
 }
 
-export function StudioPage({ onViewResource }: StudioPageProps) {
-    const [templates] = useState<any[]>([
-        { id: 'cornell', title: 'Cornell Notes', type: 'note', description: 'Structured note-taking', icon: FileText, color: 'text-blue-400', bgColor: 'bg-blue-400/10' },
-        { id: 'pitch', title: 'Pitch Deck', type: 'ppt', description: 'Professional slides', icon: Presentation, color: 'text-purple-400', bgColor: 'bg-purple-400/10' },
-        { id: 'math', title: 'Problem Set', type: 'note', description: 'Formulas & proofs', icon: BookOpen, color: 'text-green-400', bgColor: 'bg-green-400/10' },
-        { id: 'flash', title: 'Smart Deck', type: 'note', description: 'AI-first flashcards', icon: Sparkles, color: 'text-yellow-400', bgColor: 'bg-yellow-400/10' },
-    ]);
-
+export function StudioPage({ onViewResource, setActiveView }: StudioPageProps) {
     const [recentCreations, setRecentCreations] = useState<Resource[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -42,35 +29,10 @@ export function StudioPage({ onViewResource }: StudioPageProps) {
 
     async function loadRecentResources() {
         try {
-            const res = await invoke<Resource[]>('get_resources', { repository_id: null });
+            const res = await invoke<Resource[]>('get_resources', { repositoryId: null });
             setRecentCreations(res.slice(0, 4));
         } catch (e) {
             console.error("Failed to load resources:", e);
-        }
-    }
-
-    async function handleQuickCreate(type: 'note' | 'ppt', templateId?: string) {
-        try {
-            const repos = await invoke<any[]>('get_repositories');
-            if (repos.length === 0) {
-                alert("Please create a repository first!");
-                return;
-            }
-
-            const repoId = repos[0].id;
-            const title = templateId ? `New ${templateId} ${type}` : `Untitled ${type}`;
-            const content = "";
-
-            const newRes = await invoke<Resource>('add_resource', {
-                repositoryId: repoId,
-                title,
-                resourceType: type,
-                content
-            });
-
-            onViewResource(newRes);
-        } catch (e) {
-            console.error("Failed to create resource:", e);
         }
     }
 
@@ -115,46 +77,11 @@ export function StudioPage({ onViewResource }: StudioPageProps) {
                 initial="hidden"
                 animate="visible"
             >
-                {/* 1. AI Workspace Hero (Large) */}
-                <motion.div
-                    className="md:col-span-2 md:row-span-2 glass-card p-8 rounded-3xl relative overflow-hidden group border-white/5 bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent shadow-2xl"
-                    variants={itemVariants}
-                >
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-accent/10 blur-[100px] -mr-32 -mt-32 rounded-full group-hover:bg-accent/20 transition-all duration-700 pointer-events-none" />
-
-                    <div className="flex flex-col h-full">
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="p-3 bg-accent/10 rounded-2xl">
-                                <Cpu className="text-accent" size={28} />
-                            </div>
-                            <div>
-                                <h3 className="text-2xl font-bold text-text-primary">AI Copilot Workspace</h3>
-                                <p className="text-text-tertiary text-xs font-mono uppercase tracking-widest mt-0.5">Automated Generation</p>
-                            </div>
-                        </div>
-
-                        <p className="text-text-secondary text-lg leading-relaxed mb-8">
-                            Transform your research into comprehensive study guides, slide decks, and quizzes with a single prompt. Our AI understands your context.
-                        </p>
-
-                        <div className="mt-auto flex flex-col gap-4">
-                            <div className="flex gap-2">
-                                <span className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] text-text-tertiary font-mono">NEURAL-LINK v2</span>
-                                <span className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] text-text-tertiary font-mono">MARKDOWN READY</span>
-                            </div>
-                            <button className="w-fit bg-white/5 hover:bg-accent hover:text-black border border-white/10 hover:border-accent p-4 rounded-2xl flex items-center gap-3 transition-all group/btn font-bold">
-                                <span>Initialize AI Workspace</span>
-                                <ArrowRight size={18} className="group-hover/btn:translate-x-1 transition-transform" />
-                            </button>
-                        </div>
-                    </div>
-                </motion.div>
-
-                {/* 2. Quick Create: Document */}
+                {/* 1. Quick Create: Document */}
                 <motion.button
                     className="md:col-span-1 glass-card p-6 rounded-3xl flex flex-col justify-between hover:border-accent/50 transition-colors group text-left shadow-xl"
                     variants={itemVariants}
-                    onClick={() => handleQuickCreate('note')}
+                    onClick={() => setActiveView('ai-document-create')}
                 >
                     <div className="p-3 bg-blue-400/10 rounded-2xl w-fit group-hover:scale-110 transition-transform">
                         <FileText className="text-blue-400" size={24} />
@@ -169,11 +96,11 @@ export function StudioPage({ onViewResource }: StudioPageProps) {
                     </div>
                 </motion.button>
 
-                {/* 3. Quick Create: Presentation */}
+                {/* 2. Quick Create: Presentation */}
                 <motion.button
                     className="md:col-span-1 glass-card p-6 rounded-3xl flex flex-col justify-between hover:border-accent/50 transition-colors group text-left shadow-xl"
                     variants={itemVariants}
-                    onClick={() => handleQuickCreate('ppt')}
+                    onClick={() => setActiveView('ai-presentation-create')}
                 >
                     <div className="p-3 bg-purple-400/10 rounded-2xl w-fit group-hover:scale-110 transition-transform">
                         <Presentation className="text-purple-400" size={24} />
@@ -188,44 +115,10 @@ export function StudioPage({ onViewResource }: StudioPageProps) {
                     </div>
                 </motion.button>
 
-                {/* 4. Templates Section */}
-                <motion.div
-                    className="md:col-span-2 glass-card p-6 rounded-3xl flex flex-col shadow-xl"
-                    variants={itemVariants}
-                >
-                    <div className="flex items-center justify-between mb-6">
-                        <div className="flex items-center gap-2">
-                            <Library size={18} className="text-text-tertiary" />
-                            <h3 className="text-sm font-mono text-text-secondary uppercase tracking-widest">Template Library</h3>
-                        </div>
-                        <button className="text-[10px] text-accent font-mono hover:underline flex items-center gap-1 group">
-                            ALL TEMPLATES <ChevronRight size={12} className="group-hover:translate-x-1 transition-transform" />
-                        </button>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                        {templates.map((template) => (
-                            <button
-                                key={template.id}
-                                onClick={() => handleQuickCreate(template.type, template.id)}
-                                className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/5 hover:border-white/10 hover:bg-white/10 transition-all text-left group"
-                            >
-                                <div className={cn("p-2 rounded-xl group-hover:scale-110 transition-transform", template.bgColor)}>
-                                    <template.icon size={18} className={template.color} />
-                                </div>
-                                <div className="min-w-0">
-                                    <p className="text-xs font-bold text-text-primary truncate">{template.title}</p>
-                                    <p className="text-[10px] text-text-tertiary truncate">{template.description}</p>
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                </motion.div>
-
-                {/* 6. Resource Manipulation Tools (PDF/Image) */}
+                {/* 3. Resource Manipulation Tools (PDF/Image) */}
                 <StudioResourceTools />
 
-                {/* 5. Recent Work (Horizontal List) */}
+                {/* 4. Recent Work (Horizontal List) */}
                 <motion.div
                     className="md:col-span-4 glass-card p-6 rounded-3xl shadow-xl overflow-hidden"
                     variants={itemVariants}

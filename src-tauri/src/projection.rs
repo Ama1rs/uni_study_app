@@ -222,7 +222,7 @@ pub fn get_per_semester_targets(
 /// Vector of per-course targets
 #[tauri::command]
 pub fn get_per_course_targets(
-    state: tauri::State<crate::db_manager::DbState>,
+    state: tauri::State<crate::DbState>,
     semester_target_gpa: f64,
     semester_id: i64,
 ) -> Result<Vec<CourseTarget>, String> {

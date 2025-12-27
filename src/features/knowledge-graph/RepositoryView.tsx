@@ -13,12 +13,13 @@ import { LinkDialog } from '../resources/LinkDialog';
 import { RepositoryHeader } from './components/RepositoryHeader';
 import { RepositoryToolbar } from './components/RepositoryToolbar';
 import { ResourceGridView } from './components/ResourceGridView';
+import { ResourceListView } from './components/ResourceListView';
 
 // Modals
-import { TemplateModal } from './modals/TemplateModal';
 import { AddNoteModal } from './modals/AddNoteModal';
 import { ResourcePreviewModal } from './modals/ResourcePreviewModal';
 import { StressTestModal } from './modals/StressTestModal';
+import { RepositorySettingsModal } from './modals/RepositorySettingsModal';
 
 // Types and Utils
 import { LinkV2, LinkType } from '../../types/node-system';
@@ -46,27 +47,28 @@ interface RepositoryViewProps {
 
 export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
     const [activeView, setActiveView] = useState<'graph' | 'list' | 'videos' | 'editor'>('graph');
+    const [previousView, setPreviousView] = useState<'graph' | 'list' | 'videos'>('graph');
     const [searchQuery, setSearchQuery] = useState('');
+    const [listViewType, setListViewType] = useState<'grid' | 'list'>('grid');
 
     const [resources, setResources] = useState<Resource[]>([]);
     const [links, setLinks] = useState<LinkV2[]>([]);
     const [linkTypes, setLinkTypes] = useState<LinkType[]>([]);
     const [isImporting, setIsImporting] = useState(false);
-    const [showTemplates, setShowTemplates] = useState(false);
     const [showAddNote, setShowAddNote] = useState(false);
-    const [noteContent, setNoteContent] = useState('');
     const [activeNoteResource, setActiveNoteResource] = useState<Resource | null>(null);
     const [previewResource, setPreviewResource] = useState<Resource | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
     const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
 
     // Dialog & Modal State
     const [showLinkDialog, setShowLinkDialog] = useState(false);
     const [linkSourceId, setLinkSourceId] = useState<number | null>(null);
     const [showStressTest, setShowStressTest] = useState(false);
-    const [showFilters, setShowFilters] = useState(false);
-    const [filterTypes, setFilterTypes] = useState<string[]>([]);
-    const [filterStatus, setFilterStatus] = useState<string[]>([]);
+    const [showRepositorySettings, setShowRepositorySettings] = useState(false);
+    const [editingTagsResource, setEditingTagsResource] = useState<Resource | null>(null);
+    const [noteWidth, setNoteWidth] = useState(800);
 
     useEffect(() => {
         loadData();
@@ -83,16 +85,41 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
             }
 
             if (previewResource.type === 'pdf') {
+                // Read PDF as base64 from backend and create a Blob URL in the renderer.
+                // Blob URLs are more reliable for large files than data: URLs and avoid asset:// issues.
+                // Revoke any previous blob URL when creating a new one.
+                if (previewBlobUrl) {
+                    try { URL.revokeObjectURL(previewBlobUrl); } catch (e) { /* ignore */ }
+                    setPreviewBlobUrl(null);
+                }
+
                 invoke<string>('read_file_base64', { path: previewResource.path })
                     .then(base64 => {
-                        setPreviewUrl(`data:application/pdf;base64,${base64}`);
+                        try {
+                            const binaryString = atob(base64);
+                            const len = binaryString.length;
+                            const bytes = new Uint8Array(len);
+                            for (let i = 0; i < len; i++) {
+                                bytes[i] = binaryString.charCodeAt(i);
+                            }
+                            const blob = new Blob([bytes], { type: 'application/pdf' });
+                            const blobUrl = URL.createObjectURL(blob);
+                            setPreviewBlobUrl(blobUrl);
+                            setPreviewUrl(blobUrl);
+                        } catch (e) {
+                            console.error('Failed to construct blob from base64:', e);
+                            // fallback to data URL
+                            setPreviewUrl(`data:application/pdf;base64,${base64}`);
+                        }
                     })
-                    .catch(e => {
-                        console.error('Failed to read PDF:', e);
+                    .catch(err => {
+                        console.error('read_file_base64 failed:', err);
+                        // Fallback to convertFileSrc if reading as base64 fails
                         try {
                             setPreviewUrl(convertFileSrc(raw));
-                        } catch (err) {
-                            console.error('Fallback failed:', err);
+                        } catch (e) {
+                            console.error('convertFileSrc failed fallback:', e);
+                            setPreviewUrl(raw);
                         }
                     });
             } else {
@@ -106,6 +133,13 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
         } else {
             setPreviewUrl(null);
         }
+        // Cleanup: revoke blob URL when previewResource changes or on unmount
+        return () => {
+            if (previewBlobUrl) {
+                try { URL.revokeObjectURL(previewBlobUrl); } catch (e) { /* ignore */ }
+                setPreviewBlobUrl(null);
+            }
+        };
     }, [previewResource]);
 
     // Keyboard shortcuts
@@ -143,7 +177,7 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
     async function loadData() {
         try {
             const [resResources, resLinks, resTypes] = await Promise.all([
-                invoke<Resource[]>('get_resources', { repository_id: repository.id }),
+                invoke<Resource[]>('get_resources', { repositoryId: repository.id }),
                 invoke<LinkV2[]>('get_links_v2_cmd'),
                 invoke<LinkType[]>('get_link_types_cmd')
             ]);
@@ -155,13 +189,45 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
         }
     }
 
-    const availableTypes = Array.from(new Set(resources.map(r => r.type)));
+    // Extract all unique tags from resources
+    const allTags = Array.from(
+        new Set(
+            resources
+                .flatMap(r => r.tags?.split(',').map(t => t.trim()).filter(t => t) || [])
+        )
+    ).sort();
+
+    async function deleteTag(tag: string) {
+        try {
+            // Remove tag from all resources that have it
+            const resourcesWithTag = resources.filter(r => 
+                r.tags?.toLowerCase().includes(tag.toLowerCase())
+            );
+
+            for (const res of resourcesWithTag) {
+                const tags = res.tags
+                    ?.split(',')
+                    .map(t => t.trim())
+                    .filter(t => t.toLowerCase() !== tag.toLowerCase())
+                    .join(',') || '';
+                
+                await invoke('update_resource', {
+                    id: res.id,
+                    tags: tags || null
+                });
+            }
+
+            loadData();
+        } catch (e) {
+            console.error("Failed to delete tag:", e);
+            alert(`Failed to delete tag: ${e}`);
+        }
+    }
 
     const filteredResources = resources.filter(r => {
         const matchesSearch = r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
             (r.tags && r.tags.toLowerCase().includes(searchQuery.toLowerCase()));
-        const matchesType = filterTypes.length === 0 || filterTypes.includes(r.type);
-        return matchesSearch && matchesType;
+        return matchesSearch;
     });
 
     const graphData = {
@@ -199,8 +265,8 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
 
             if (selected && typeof selected === 'string') {
                 await invoke('import_resource', {
-                    repository_id: repository.id,
-                    file_path: selected
+                    repositoryId: repository.id,
+                    filePath: selected
                 });
                 loadData();
             }
@@ -222,22 +288,37 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
         }
     }
 
-    async function addNote(content: string) {
+    async function addNote(content: string, tags?: string) {
         try {
             await invoke('process_text_to_nodes', {
-                repository_id: repository.id,
-                text: content
+                repositoryId: repository.id,
+                text: content,
+                tags: tags || null
             });
             setShowAddNote(false);
-            setNoteContent('');
             loadData();
         } catch (e) {
             console.error("Failed to add note:", e);
+            alert(`Failed to create note: ${e}`);
+        }
+    }
+
+    async function editTags(resource: Resource, tags: string) {
+        try {
+            await invoke('update_resource', {
+                id: resource.id,
+                tags: tags || null
+            });
+            loadData();
+        } catch (e) {
+            console.error("Failed to update tags:", e);
+            alert(`Failed to update tags: ${e}`);
         }
     }
 
     function handleResourceOpen(res: Resource) {
         if (res.type === 'note') {
+            setPreviousView(activeView as 'graph' | 'list' | 'videos');
             setActiveNoteResource(res);
             setActiveView('editor');
             return;
@@ -265,20 +346,16 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
                 setActiveView={setActiveView}
                 showStressTest={showStressTest}
                 setShowStressTest={setShowStressTest}
+                showRepositorySettings={showRepositorySettings}
+                setShowRepositorySettings={setShowRepositorySettings}
                 onBack={onBack}
             />
 
             <RepositoryToolbar
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
-                showFilters={showFilters}
-                setShowFilters={setShowFilters}
-                filterTypes={filterTypes}
-                onToggleType={(type) => setFilterTypes(prev => prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type])}
-                availableTypes={availableTypes}
-                filterStatus={filterStatus}
-                onToggleStatus={(status) => setFilterStatus(prev => prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status])}
-                onShowTemplates={() => setShowTemplates(true)}
+                availableTags={allTags}
+                onShowAddNote={() => setShowAddNote(true)}
                 onImportFile={importFile}
                 isImporting={isImporting}
                 activeView={activeView}
@@ -308,11 +385,22 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
                 </div>
 
                 <AnimatePresence mode="wait">
-                    {activeView === 'list' && (
+                    {activeView === 'list' && listViewType === 'grid' && (
                         <ResourceGridView
                             resources={filteredResources}
                             onOpenResource={handleResourceOpen}
                             onDeleteResource={deleteResource}
+                            onEditTags={(res) => setEditingTagsResource(res)}
+                            onShowAddNote={() => setShowAddNote(true)}
+                            onImportFile={importFile}
+                        />
+                    )}
+                    {activeView === 'list' && listViewType === 'list' && (
+                        <ResourceListView
+                            resources={filteredResources}
+                            onOpenResource={handleResourceOpen}
+                            onDeleteResource={deleteResource}
+                            onEditTags={(res) => setEditingTagsResource(res)}
                             onShowAddNote={() => setShowAddNote(true)}
                             onImportFile={importFile}
                         />
@@ -328,14 +416,15 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
                         <NoteEditor
                             resource={activeNoteResource}
                             repositoryId={repository.id}
+                            noteWidth={noteWidth}
                             onClose={() => {
-                                setActiveView('graph');
+                                setActiveView(previousView);
                                 setActiveNoteResource(null);
                             }}
                             onSave={() => loadData()}
                             onDelete={() => {
                                 loadData();
-                                setActiveView('graph');
+                                setActiveView(previousView);
                                 setActiveNoteResource(null);
                             }}
                         />
@@ -343,21 +432,10 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
                 </div>
             </div>
 
-            <TemplateModal
-                isOpen={showTemplates}
-                onClose={() => setShowTemplates(false)}
-                onSelectTemplate={(content) => {
-                    setNoteContent(content);
-                    setShowTemplates(false);
-                    setShowAddNote(true);
-                }}
-            />
-
             <AddNoteModal
                 isOpen={showAddNote}
                 onClose={() => setShowAddNote(false)}
                 onAddNote={addNote}
-                initialContent={noteContent}
             />
 
             <ResourcePreviewModal
@@ -402,6 +480,60 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
                     }}
                 />
             )}
+
+            {/* Edit Tags Modal */}
+            {editingTagsResource && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
+                    <div className="glass-card p-6 rounded-2xl w-96 shadow-xl bg-bg-surface">
+                        <h3 className="text-lg font-bold mb-4 text-text-primary">Edit Tags</h3>
+                        <p className="text-sm text-text-secondary mb-4">Add tags to "{editingTagsResource.title}" (comma-separated)</p>
+
+                        <form onSubmit={(e) => {
+                            e.preventDefault();
+                            const formData = new FormData(e.target as HTMLFormElement);
+                            const tags = (formData.get('tags') as string).trim();
+                            editTags(editingTagsResource, tags);
+                            setEditingTagsResource(null);
+                        }}>
+                            <input
+                                name="tags"
+                                type="text"
+                                defaultValue={editingTagsResource.tags || ''}
+                                placeholder="math, calculus, important"
+                                className="w-full px-4 py-2 rounded-lg outline-none border border-border bg-transparent text-text-primary placeholder-text-tertiary focus:border-accent transition-colors"
+                                autoFocus
+                            />
+
+                            <div className="flex justify-end gap-2 mt-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingTagsResource(null)}
+                                    className="px-4 py-2 rounded-lg text-sm text-text-secondary hover:text-text-primary transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-4 py-2 rounded-lg text-sm text-black font-medium bg-accent hover:bg-accent-hover transition-colors shadow-lg shadow-accent/20"
+                                >
+                                    Save Tags
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            <RepositorySettingsModal
+                isOpen={showRepositorySettings}
+                onClose={() => setShowRepositorySettings(false)}
+                noteWidth={noteWidth}
+                onNoteWidthChange={setNoteWidth}
+                allTags={allTags}
+                onDeleteTag={deleteTag}
+                listViewType={listViewType}
+                onListViewTypeChange={setListViewType}
+            />
         </div>
     );
 }

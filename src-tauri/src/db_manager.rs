@@ -391,7 +391,3 @@ impl DatabaseManager {
         Ok(())
     }
 }
-
-pub struct DbState {
-    pub db_manager: DatabaseManager,
-}

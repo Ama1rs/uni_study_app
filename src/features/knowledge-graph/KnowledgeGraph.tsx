@@ -1,6 +1,7 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { ZoomControls } from '../../components/ui/ZoomControls';
+import { initializeGraphLayout, getOptimizedForceSimulationSettings, applyGravityForces, analyzeGraphStructure } from '../../lib/graphLayout';
 
 interface Node {
     id: string;
@@ -38,6 +39,29 @@ export function KnowledgeGraph({ data, onNodeClick, onEditNode, onDeleteNode, on
     const containerRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState({ w: 100, h: 100 });
     const [menuState, setMenuState] = useState<{ x: number; y: number; node: any } | null>(null);
+    const [_isStabilizing, setIsStabilizing] = useState(true);
+    const gravityIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Compute optimized layout once on data change
+    const layoutData = useMemo(() => {
+        if (!data || data.nodes.length === 0) return data;
+        
+        // Analyze structure for diagnostics
+        const analysis = analyzeGraphStructure(data);
+        console.log('Graph structure analysis:', analysis);
+        
+        // Initialize layout with clustering
+        return initializeGraphLayout(data, 2000, 2000, {
+            clusterSpacing: 1.0,
+            isolatedNodeGravity: 0.4,
+            enableClusterFixing: false
+        });
+    }, [data]);
+
+    // Get optimized simulation settings
+    const simSettings = useMemo(() => {
+        return getOptimizedForceSimulationSettings(layoutData.nodes.length);
+    }, [layoutData]);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -56,6 +80,50 @@ export function KnowledgeGraph({ data, onNodeClick, onEditNode, onDeleteNode, on
         setDimensions({ w: clientWidth, h: clientHeight });
 
         return () => resizeObserver.disconnect();
+    }, []);
+
+    // Apply continuous gravity forces to unlinked nodes
+    useEffect(() => {
+        if (!graphRef.current) return;
+
+        // Start gravity interval
+        gravityIntervalRef.current = setInterval(() => {
+            if (graphRef.current?.d3Force) {
+                const simulation = graphRef.current.d3Force('simulation');
+                if (simulation) {
+                    applyGravityForces(simulation.nodes(), layoutData.links, 0.008);
+                }
+            }
+        }, 50);
+
+        return () => {
+            if (gravityIntervalRef.current) {
+                clearInterval(gravityIntervalRef.current);
+            }
+        };
+    }, [layoutData]);
+
+    // Monitor stabilization
+    useEffect(() => {
+        if (!graphRef.current) return;
+
+        const checkStabilization = () => {
+            try {
+                const simulation = graphRef.current?.d3Force?.('simulation');
+                if (simulation) {
+                    const currentAlpha = simulation.alpha();
+                    if (currentAlpha < 0.05) {
+                        setIsStabilizing(false);
+                        console.log('Graph stabilized');
+                    }
+                }
+            } catch (e) {
+                // Ignore errors in monitoring
+            }
+        };
+
+        const monitor = setInterval(checkStabilization, 200);
+        return () => clearInterval(monitor);
     }, []);
 
     const handleZoomIn = () => {
@@ -130,7 +198,7 @@ export function KnowledgeGraph({ data, onNodeClick, onEditNode, onDeleteNode, on
                 ref={graphRef}
                 width={dimensions.w}
                 height={dimensions.h}
-                graphData={data}
+                graphData={layoutData}
                 nodeLabel="name"
                 nodeColor={(node: any) => (node as Node).color || '#ffffff'}
                 nodeRelSize={6}
@@ -142,8 +210,8 @@ export function KnowledgeGraph({ data, onNodeClick, onEditNode, onDeleteNode, on
                 backgroundColor="rgba(0,0,0,0)"
                 onNodeClick={onNodeClick}
                 onNodeRightClick={handleNodeRightClick}
-                cooldownTicks={100}
-                d3VelocityDecay={0.3}
+                cooldownTicks={simSettings.cooldownTicks}
+                d3VelocityDecay={simSettings.d3VelocityDecay}
             />
             <ZoomControls
                 onZoomIn={handleZoomIn}

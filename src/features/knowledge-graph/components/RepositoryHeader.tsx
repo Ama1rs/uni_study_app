@@ -8,6 +8,8 @@ interface RepositoryHeaderProps {
     setActiveView: (view: 'graph' | 'list' | 'videos' | 'editor') => void;
     showStressTest: boolean;
     setShowStressTest: (show: boolean) => void;
+    showRepositorySettings: boolean;
+    setShowRepositorySettings: (show: boolean) => void;
     onBack: () => void;
 }
 
@@ -17,6 +19,8 @@ export function RepositoryHeader({
     setActiveView,
     showStressTest,
     setShowStressTest,
+    showRepositorySettings,
+    setShowRepositorySettings,
     onBack
 }: RepositoryHeaderProps) {
     if (activeView === 'editor') return null;
@@ -113,11 +117,13 @@ export function RepositoryHeader({
                     <Zap size={20} />
                 </motion.button>
                 <motion.button
+                    onClick={() => setShowRepositorySettings(!showRepositorySettings)}
                     className="p-2.5 rounded-xl border hover:bg-white/5 transition-colors"
                     style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
                     whileHover={{ scale: 1.1, rotate: 90 }}
                     whileTap={{ scale: 0.95 }}
                     transition={{ duration: 0.3 }}
+                    title="Repository Settings"
                 >
                     <Settings size={20} />
                 </motion.button>

@@ -70,7 +70,7 @@ export function HomeHub({ onOpenFile }: { onOpenFile: (res: Resource) => void })
 
     async function loadResources() {
         try {
-            const res = await invoke<Resource[]>('get_resources', { repository_id: null });
+            const res = await invoke<Resource[]>('get_resources', { repositoryId: null });
             setResources(res);
         } catch (e) {
             console.error("Failed to load resources:", e);
