@@ -116,8 +116,8 @@ function calculateClusterPositions(
         const row = Math.floor(i / gridSize);
         const col = i % gridSize;
         positions.set(i, {
-            cx: cellWidth * (col + 1),
-            cy: cellHeight * (row + 1)
+            cx: cellWidth * (col + 1) - width / 2,
+            cy: cellHeight * (row + 1) - height / 2
         });
     }
 
@@ -138,7 +138,7 @@ export function initializeGraphLayout(
         enableClusterFixing?: boolean; // Fix cluster centers (default: false)
     }
 ): GraphData {
-    const { clusterSpacing = 1.0, isolatedNodeGravity = 0.3, enableClusterFixing = false } = options || {};
+    const { clusterSpacing = 1.0, isolatedNodeGravity = 0.3 } = options || {};
 
     const nodeIds = data.nodes.map(n => n.id);
     const componentMap = findConnectedComponents(nodeIds, data.links);
@@ -153,32 +153,31 @@ export function initializeGraphLayout(
         clusterMembers.get(componentId)!.push(nodeId);
     });
 
-    // Apply layout to nodes
+    // Apply radial layout within clusters for a structured, uniform look
     const layoutData: GraphData = {
         nodes: data.nodes.map(node => {
             const componentId = componentMap.get(node.id)!;
             const clusterPos = clusterPositions.get(componentId)!;
-            const clusterSize = clusterMembers.get(componentId)!.length;
+            const members = clusterMembers.get(componentId)!;
+            const index = members.indexOf(node.id);
+            const clusterSize = members.length;
 
-            // Add slight random offset within cluster to break symmetry
-            const offsetRadius = Math.max(50, Math.sqrt(clusterSize) * 15);
-            const angle = Math.random() * Math.PI * 2;
-            const distance = Math.random() * offsetRadius;
+            // Radial packing inside cluster
+            // Gold ratio for even distribution in circles
+            const angle = index * (Math.PI * (3 - Math.sqrt(5)));
+            const radius = Math.sqrt(index) * Math.max(25, 10 + Math.sqrt(clusterSize) * 8);
 
-            // Store layout info as custom properties
+            // Store layout info
             const layoutNode: GraphNode = {
                 ...node,
-                // Target attraction point (cluster center)
-                ...(enableClusterFixing && {
-                    fx: clusterPos.cx + Math.cos(angle) * distance,
-                    fy: clusterPos.cy + Math.sin(angle) * distance
-                }),
-                // Store cluster center for gravity calculations
+                // Initial structured position - No longer fixed (fx/fy) to allow floatiness
+                x: clusterPos.cx + Math.cos(angle) * radius,
+                y: clusterPos.cy + Math.sin(angle) * radius,
                 __clusterX: clusterPos.cx,
                 __clusterY: clusterPos.cy,
                 __clusterId: componentId,
                 __isIsolated: clusterSize === 1,
-                __gravityStrength: clusterSize === 1 ? isolatedNodeGravity : 0
+                __gravityStrength: clusterSize === 1 ? isolatedNodeGravity : 0.02
             };
 
             return layoutNode as any;
@@ -194,30 +193,17 @@ export function initializeGraphLayout(
  * Returns an object with recommended settings
  */
 export function getOptimizedForceSimulationSettings(nodeCount: number) {
-    // Scale parameters based on graph size
-    const baseNodeRepulsion = Math.max(20, 100 / Math.sqrt(nodeCount));
-    const baseLinkForce = 0.5;
-    
+    // Balanced repulsion for floatiness vs structure
+    const baseNodeRepulsion = Math.max(100, 300 / Math.sqrt(nodeCount || 1));
+    const baseLinkForce = 0.4;
+
     return {
-        // Reduce velocity decay for faster convergence
-        d3VelocityDecay: 0.4, // Higher = faster damping (default 0.3)
-        
-        // Simulation convergence
-        cooldownTicks: Math.max(150, Math.min(500, nodeCount * 0.3)), // Longer simulation for larger graphs
-        
-        // Force simulation (note: react-force-graph-2d doesn't expose all d3-force options directly,
-        // but we can use these core settings)
-        d3AlphaDecay: 0.0228, // Cooling schedule (affects overall convergence speed)
-        
-        // Recommended charge strength for repulsion
-        // (would be set via d3Force if available in this library)
+        d3VelocityDecay: 0.3, // Lower = more floaty/bouncy (default 0.4)
+        cooldownTicks: Math.max(250, Math.min(800, nodeCount * 1.5)), // Longer cooling for smoother settling
+        d3AlphaDecay: 0.02,
         chargeStrength: -baseNodeRepulsion,
-        
-        // Link force strength
         linkStrength: baseLinkForce,
-        
-        // Minimum distance for nodes
-        nodeDistance: Math.max(30, Math.sqrt(nodeCount) * 5)
+        nodeDistance: Math.max(100, Math.sqrt(nodeCount) * 12)
     };
 }
 
@@ -231,7 +217,7 @@ export function applyGravityForces(
     strength: number = 0.01
 ): void {
     const linkedNodes = new Set<string>();
-    
+
     links.forEach(link => {
         const sourceId = typeof link.source === 'string' ? link.source : (link.source as any).id;
         const targetId = typeof link.target === 'string' ? link.target : (link.target as any).id;
@@ -250,7 +236,7 @@ export function applyGravityForces(
                 const force = strength * (node as any).__gravityStrength;
                 if (node.vx === undefined) node.vx = 0;
                 if (node.vy === undefined) node.vy = 0;
-                
+
                 node.vx! += (dx / distance) * force;
                 node.vy! += (dy / distance) * force;
             }
@@ -259,19 +245,44 @@ export function applyGravityForces(
 }
 
 /**
- * Analyze graph structure and return diagnostics
+ * Analyze graph structure and return diagnostics and node metrics
  */
 export function analyzeGraphStructure(data: GraphData) {
     const nodeIds = data.nodes.map(n => n.id);
     const componentMap = findConnectedComponents(nodeIds, data.links);
 
     const componentSizes = new Map<number, number>();
+    const nodeDegrees = new Map<string, number>();
+
+    // Initialize degrees
+    nodeIds.forEach(id => nodeDegrees.set(id, 0));
+
+    // Calculate degrees and component sizes
+    data.links.forEach(link => {
+        const sourceId = typeof link.source === 'string' ? link.source : (link.source as any).id;
+        const targetId = typeof link.target === 'string' ? link.target : (link.target as any).id;
+
+        if (nodeDegrees.has(sourceId)) nodeDegrees.set(sourceId, (nodeDegrees.get(sourceId) || 0) + 1);
+        if (nodeDegrees.has(targetId)) nodeDegrees.set(targetId, (nodeDegrees.get(targetId) || 0) + 1);
+    });
+
     componentMap.forEach(componentId => {
         componentSizes.set(componentId, (componentSizes.get(componentId) || 0) + 1);
     });
 
     const isolatedCount = Array.from(componentSizes.values()).filter(size => size === 1).length;
-    const largestCluster = Math.max(...Array.from(componentSizes.values()));
+    const largestCluster = Math.max(...Array.from(componentSizes.values()), 0);
+
+    // Identify hub nodes (top 10% by degree or degree > 3)
+    const sortedDegrees = Array.from(nodeDegrees.entries()).sort((a, b) => b[1] - a[1]);
+    const hubThreshold = Math.max(3, sortedDegrees[Math.floor(sortedDegrees.length * 0.1)]?.[1] || 0);
+    const hubs = new Set(sortedDegrees.filter(([_, degree]) => degree >= hubThreshold).map(([id]) => id));
+
+    // Calculate uniformity (standard deviation of degrees, inverted)
+    const degrees = Array.from(nodeDegrees.values());
+    const avgDegree = data.links.length * 2 / (data.nodes.length || 1);
+    const variance = degrees.reduce((acc, d) => acc + Math.pow(d - avgDegree, 2), 0) / (data.nodes.length || 1);
+    const uniformity = 1 / (1 + Math.sqrt(variance)); // Higher means more uniform
 
     return {
         totalNodes: data.nodes.length,
@@ -280,6 +291,12 @@ export function analyzeGraphStructure(data: GraphData) {
         isolatedNodeCount: isolatedCount,
         largestClusterSize: largestCluster,
         avgClusterSize: data.nodes.length / (componentSizes.size || 1),
-        density: (2 * data.links.length) / (data.nodes.length * (data.nodes.length - 1)) || 0
+        density: (2 * data.links.length) / (data.nodes.length * (data.nodes.length - 1)) || 0,
+        nodeMetrics: nodeDegrees,
+        hubs: hubs,
+        // Semantic assessment
+        coherence: largestCluster / (data.nodes.length || 1), // How much is 'unified'
+        complexity: (data.links.length / (data.nodes.length || 1)), // Avg connections per node
+        uniformity: uniformity
     };
 }

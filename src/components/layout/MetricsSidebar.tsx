@@ -14,18 +14,16 @@ export function MetricsSidebar({ isOpen, onToggle }: MetricsSidebarProps) {
     return (
         <div
             className={cn(
-                "sticky top-0 h-screen border-l transition-all duration-300 ease-in-out flex flex-col overflow-hidden",
+                "sticky top-0 h-screen border-l border-border bg-bg-surface transition-all duration-300 ease-in-out flex flex-col overflow-hidden",
                 isOpen ? "w-80 opacity-100" : "w-0 opacity-0 border-l-0"
             )}
-            style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border)' }}
         >
             {/* Header */}
-            <div className="p-6 border-b flex items-center justify-between shrink-0" style={{ borderColor: 'var(--border)' }}>
-                <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Metrics</h2>
+            <div className="p-6 border-b border-border flex items-center justify-between shrink-0">
+                <h2 className="text-lg font-semibold text-text-primary">Metrics</h2>
                 <button
                     onClick={onToggle}
-                    className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
-                    style={{ color: 'var(--text-secondary)' }}
+                    className="p-1.5 rounded-lg hover:bg-white/10 text-text-secondary transition-colors"
                 >
                     <X size={18} />
                 </button>
@@ -80,19 +78,19 @@ function MetricItem({ icon: Icon, label, value, subtext, color, data, labels }: 
         <div className="space-y-3">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--bg-primary)' }}>
-                        <Icon size={18} style={{ color: color }} />
+                    <div className="p-2 rounded-lg bg-bg-surface border border-border/50">
+                        <Icon size={18} className="text-text-secondary" />
                     </div>
                     <div>
-                        <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{label}</p>
-                        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{subtext}</p>
+                        <p className="text-sm font-medium text-text-primary">{label}</p>
+                        <p className="text-xs text-text-secondary">{subtext}</p>
                     </div>
                 </div>
-                <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{value}</span>
+                <span className="text-lg font-bold text-text-primary">{value}</span>
             </div>
 
             {/* Dynamic Chart */}
-            <div className="w-full h-20 rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--bg-primary)' }}>
+            <div className="w-full h-20 rounded-xl overflow-hidden bg-bg-primary">
                 <DynamicLineChart
                     data={data}
                     labels={labels}

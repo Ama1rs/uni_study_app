@@ -60,10 +60,10 @@ export function NodeDetailPanel({ nodeId, title, type, onClose, onMetadataChange
         }
     }
 
-    if (loading) return <div className="w-80 h-full border-l border-border bg-bg-surface backdrop-blur-md p-6 absolute right-0 top-0 z-20 flex items-center justify-center text-text-secondary">Loading...</div>;
+    if (loading) return <div className="w-80 h-full border-l border-border bg-bg-card p-6 absolute right-0 top-0 z-40 flex items-center justify-center text-text-secondary">Loading...</div>;
 
     return (
-        <div className="w-80 h-full border-l border-border bg-bg-surface p-6 absolute right-0 top-0 z-30 flex flex-col shadow-2xl transition-all" style={{ borderColor: 'var(--border)' }}>
+        <div className="w-80 h-full border-l border-border bg-bg-card p-6 absolute right-0 top-0 z-40 flex flex-col shadow-2xl transition-all" style={{ borderColor: 'var(--border)' }}>
             <div className="flex justify-between items-start mb-6">
                 <div>
                     <h2 className="text-xl font-bold text-text-primary leading-tight">{title}</h2>
@@ -77,7 +77,7 @@ export function NodeDetailPanel({ nodeId, title, type, onClose, onMetadataChange
             <div className="space-y-6 overflow-y-auto flex-1 pr-2">
                 {/* Importance */}
                 <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm font-medium text-text-secondary">
+                    <div className="flex items-center gap-2 text-sm font-medium text-text-secondary">
                         <Star size={14} /> Importance
                     </div>
                     <div className="flex gap-1">

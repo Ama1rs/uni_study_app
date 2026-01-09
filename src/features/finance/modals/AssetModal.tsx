@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Trash2 } from 'lucide-react';
 import { financeService, FinanceAsset } from '@/lib/financeService';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface AssetModalProps {
     asset: FinanceAsset | null;
@@ -14,6 +15,13 @@ export function AssetModal({ asset, onClose, onUpdate }: AssetModalProps) {
     const [amount, setAmount] = useState(asset?.amount.toString() || '');
     const [type, setType] = useState(asset?.type_ || 'cash');
     const [color, setColor] = useState(asset?.color || 'bg-blue-500');
+
+    const [confirmState, setConfirmState] = useState<{
+        isOpen: boolean;
+        title: string;
+        description: string;
+        action: () => void;
+    }>({ isOpen: false, title: '', description: '', action: () => { } });
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -39,15 +47,21 @@ export function AssetModal({ asset, onClose, onUpdate }: AssetModalProps) {
 
     const handleDelete = async () => {
         if (!asset?.id) return;
-        if (confirm('Are you sure you want to delete this asset?')) {
-            try {
-                await financeService.deleteAsset(asset.id);
-                onUpdate();
-                onClose();
-            } catch (error) {
-                console.error('Failed to delete asset:', error);
+        setConfirmState({
+            isOpen: true,
+            title: 'Delete Asset',
+            description: 'Are you sure you want to delete this asset?',
+            action: async () => {
+                try {
+                    await financeService.deleteAsset(asset.id!);
+                    onUpdate();
+                    onClose();
+                    setConfirmState(prev => ({ ...prev, isOpen: false }));
+                } catch (error) {
+                    console.error('Failed to delete asset:', error);
+                }
             }
-        }
+        });
     };
 
     return (
@@ -141,6 +155,15 @@ export function AssetModal({ asset, onClose, onUpdate }: AssetModalProps) {
                     </div>
                 </form>
             </motion.div>
+            <ConfirmDialog
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                description={confirmState.description}
+                onConfirm={confirmState.action}
+                onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+                danger
+                confirmText="Delete"
+            />
         </motion.div>
     );
 }

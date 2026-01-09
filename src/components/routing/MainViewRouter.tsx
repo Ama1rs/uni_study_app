@@ -1,7 +1,5 @@
-import { AnimatePresence } from 'framer-motion';
 import { Layout } from '@/components/layout/Layout';
 import { Resource } from '@/types/node-system';
-import { TaskPane } from '@/features/tasks/TaskPane';
 import { StudyRepository } from '@/pages/StudyRepository';
 import { Planner } from '@/pages/Planner';
 import { FocusMode } from '@/features/tasks/FocusMode';
@@ -18,6 +16,7 @@ import { NoteEditor } from '@/features/editor/NoteEditor';
 import { ResourcePreview } from '@/features/resources/ResourcePreview';
 import { StudioPage } from '@/pages/StudioPage';
 import { PresentationEditor } from '@/features/editor/PresentationEditor';
+import { Library } from '@/pages/Library';
 import { useAIGeneration } from '@/contexts/AIGenerationContext';
 import { invoke } from '@tauri-apps/api/core';
 
@@ -26,17 +25,13 @@ interface MainViewRouterProps {
     setActiveView: (v: string) => void;
     activeResource: Resource | null;
     setActiveResource: (r: Resource | null) => void;
-    isRightSidebarOpen: boolean;
-    setIsRightSidebarOpen: (v: boolean) => void;
 }
 
 export function MainViewRouter({
     activeView,
     setActiveView,
     activeResource,
-    setActiveResource,
-    isRightSidebarOpen,
-    setIsRightSidebarOpen
+    setActiveResource
 }: MainViewRouterProps) {
     const { state, setState, reset } = useAIGeneration();
 
@@ -159,20 +154,27 @@ export function MainViewRouter({
                         onOpenFile={(res: Resource) => setActiveResource(res)}
                     />
                 )}
-                <AnimatePresence mode="wait">
-                    {isRightSidebarOpen && <TaskPane onClose={() => setIsRightSidebarOpen(false)} />}
-                </AnimatePresence>
             </Layout>
         );
     }
 
-    if (activeView === "planner") return <Planner />;
-    if (activeView === "repository") return <StudyRepository />;
-    if (activeView === "focus") return <FocusMode />;
-    if (activeView === "grades") return <Grades />;
+    if (activeView === "planner") return <Layout><Planner /></Layout>;
+    if (activeView === "repository") return <Layout><StudyRepository /></Layout>;
+    if (activeView === "library") return (
+        <Layout>
+            <Library
+                onOpenBook={(book) => {
+                    setActiveResource(book);
+                    setActiveView('main');
+                }}
+            />
+        </Layout>
+    );
+    if (activeView === "focus") return <Layout><FocusMode /></Layout>;
+    if (activeView === "grades") return <Layout><Grades /></Layout>;
     if (activeView === "finance") return <Layout><Finance /></Layout>;
     if (activeView === "flashcards") return <Layout><FlashcardsPage /></Layout>;
-    if (activeView === "chat") return <ChatLocalLLM />;
+    if (activeView === "chat") return <Layout><ChatLocalLLM /></Layout>;
     if (activeView === "studio") {
         return (
             <Layout>
@@ -187,9 +189,9 @@ export function MainViewRouter({
         );
     }
 
-    if (activeView === "ai-document-create") return <AIDocumentCreate onBack={() => setActiveView('studio')} onGenerate={handleDocumentGenerate} />;
-    if (activeView === "ai-presentation-create") return <AIPresentationCreate onBack={() => setActiveView('studio')} onGenerate={handlePresentationGenerate} />;
-    if (activeView === "ai-document-review") return <AIDocumentReview
+    if (activeView === "ai-document-create") return <Layout><AIDocumentCreate onBack={() => setActiveView('studio')} onGenerate={handleDocumentGenerate} /></Layout>;
+    if (activeView === "ai-presentation-create") return <Layout><AIPresentationCreate onBack={() => setActiveView('studio')} onGenerate={handlePresentationGenerate} /></Layout>;
+    if (activeView === "ai-document-review") return <Layout><AIDocumentReview
         onBack={() => setActiveView('ai-document-create')}
         generationData={state.generationData}
         generatedContent={state.generatedContent}
@@ -198,8 +200,8 @@ export function MainViewRouter({
         onSave={handleSave}
         isGenerating={state.isGenerating}
         error={state.error}
-    />;
-    if (activeView === "ai-presentation-review") return <AIPresentationReview
+    /></Layout>;
+    if (activeView === "ai-presentation-review") return <Layout><AIPresentationReview
         onBack={() => setActiveView('ai-presentation-create')}
         generationData={state.generationData}
         generatedContent={{ slides: [] }} // TODO: Parse actual slides
@@ -208,7 +210,7 @@ export function MainViewRouter({
         onSave={handleSave}
         isGenerating={state.isGenerating}
         error={state.error}
-    />;
+    /></Layout>;
 
     return null;
 }

@@ -26,9 +26,16 @@ export function TaskPane({ onClose }: { onClose?: () => void }) {
     const [newTaskTitle, setNewTaskTitle] = useState('');
     const [isAdding, setIsAdding] = useState(false);
 
-    const currentHour = new Date().getHours();
+    const [currentTime, setCurrentTime] = useState(new Date());
+
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 60000); // Update every minute
+        return () => clearInterval(timer);
+    }, []);
+
+    const currentHour = currentTime.getHours();
     const greeting = currentHour < 12 ? 'Good morning' : currentHour < 18 ? 'Good afternoon' : 'Good evening';
-    const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    const today = currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
     useEffect(() => {
         loadEvents();
@@ -45,7 +52,7 @@ export function TaskPane({ onClose }: { onClose?: () => void }) {
     }
 
     async function loadEvents() {
-        const now = new Date();
+        const now = currentTime;
         const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
         const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
 
@@ -97,7 +104,7 @@ export function TaskPane({ onClose }: { onClose?: () => void }) {
 
     return (
         <motion.div
-            className="h-full glass-card rounded-xl mr-2 my-4 overflow-hidden"
+            className="h-full border-l border-border bg-bg-primary overflow-hidden"
             initial={{ width: 0, opacity: 0 }}
             animate={{ width: 320, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
@@ -106,11 +113,16 @@ export function TaskPane({ onClose }: { onClose?: () => void }) {
             {/* Fixed width content container to prevent squashing during resize */}
             <div className="w-full min-w-[19rem] h-full flex flex-col">
                 {/* Header */}
-                <div className="h-12 border-b border-border flex items-center justify-between px-4 bg-bg-surface/50 relative z-10">
-                    <span className="font-medium text-text-primary flex items-center gap-2">
-                        <CalendarIcon size={14} className="text-accent" />
-                        Today View
-                    </span>
+                <div className="h-12 border-b border-border flex items-center justify-between px-4 relative z-10">
+                    <div className="flex items-center gap-4">
+                        <span className="font-medium text-text-primary flex items-center gap-2">
+                            <CalendarIcon size={14} className="text-accent" />
+                            Today View
+                        </span>
+                        <span className="text-xs font-mono text-text-tertiary">
+                            {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                    </div>
                     {onClose && (
                         <button
                             onClick={onClose}

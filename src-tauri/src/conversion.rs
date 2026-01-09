@@ -1,12 +1,13 @@
 #[allow(unused_imports)]
-use crate::grades::{GradingScale, GradingScaleMapping, GradingScaleConfig};
+use crate::grades::{GradingScale, GradingScaleConfig, GradingScaleMapping};
 use serde::{Deserialize, Serialize};
 
 // Type definitions for component-based scoring
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ComponentScore {
     pub name: String,
-    pub score: i32,
+    pub score: f64,
+    pub max_score: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -17,7 +18,7 @@ pub struct ComponentConfig {
 
 /// Converts a numeric percentage score to grade points using a grading scale
 /// Finds the highest matching mapping threshold and returns corresponding points
-/// 
+///
 /// # Arguments
 /// * `score` - Percentage score (e.g., 85.0 for 85%)
 /// * `scale` - The grading scale to use for conversion
@@ -32,7 +33,10 @@ pub struct ComponentConfig {
 /// ```
 pub fn convert_numeric_score(score: f64, scale: &GradingScale) -> Result<f64, String> {
     if scale.type_ != "numeric" {
-        return Err(format!("Scale type must be 'numeric', got '{}'", scale.type_));
+        return Err(format!(
+            "Scale type must be 'numeric', got '{}'",
+            scale.type_
+        ));
     }
 
     let mappings = &scale.config.mappings;
@@ -88,7 +92,10 @@ pub fn convert_numeric_score(score: f64, scale: &GradingScale) -> Result<f64, St
 /// ```
 pub fn convert_letter_grade(grade: &str, scale: &GradingScale) -> Result<f64, String> {
     if scale.type_ != "letter" {
-        return Err(format!("Scale type must be 'letter', got '{}'", scale.type_));
+        return Err(format!(
+            "Scale type must be 'letter', got '{}'",
+            scale.type_
+        ));
     }
 
     let grade_upper = grade.to_uppercase();
@@ -167,7 +174,16 @@ pub fn calculate_weighted_score(
 
     for component in components {
         if let Some(&weight) = weight_map.get(&component.name) {
-            weighted_sum += component.score as f64 * weight;
+            let score_pct = if let Some(max) = component.max_score {
+                if max > 0.0 {
+                    (component.score / max) * 100.0
+                } else {
+                    0.0
+                }
+            } else {
+                component.score
+            };
+            weighted_sum += score_pct * weight;
             found_count += 1;
         }
     }
@@ -370,11 +386,13 @@ mod tests {
         let components = vec![
             ComponentScore {
                 name: "exam".to_string(),
-                score: 85,
+                score: 85.0,
+                max_score: None,
             },
             ComponentScore {
                 name: "lab".to_string(),
-                score: 90,
+                score: 90.0,
+                max_score: None,
             },
         ];
 
@@ -399,7 +417,8 @@ mod tests {
     fn test_weighted_score_invalid_weight() {
         let components = vec![ComponentScore {
             name: "exam".to_string(),
-            score: 85,
+            score: 85.0,
+            max_score: None,
         }];
 
         let config = vec![ComponentConfig {
@@ -425,11 +444,13 @@ mod tests {
         let components = vec![
             ComponentScore {
                 name: "exam".to_string(),
-                score: 85,
+                score: 85.0,
+                max_score: None,
             },
             ComponentScore {
                 name: "lab".to_string(),
-                score: 90,
+                score: 90.0,
+                max_score: None,
             },
         ];
 

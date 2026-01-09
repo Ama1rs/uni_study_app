@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trash2, Plus, Search } from 'lucide-react';
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 
 interface TagManagerModalProps {
     isOpen: boolean;
@@ -19,11 +20,18 @@ export function TagManagerModal({
 }: TagManagerModalProps) {
     const [newTag, setNewTag] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [confirmState, setConfirmState] = useState<{
+        isOpen: boolean;
+        title: string;
+        description: string;
+        action: () => void;
+    }>({ isOpen: false, title: '', description: '', action: () => { } });
 
     const filteredTags = useMemo(() => {
-        if (!searchQuery) return tags;
+        const baseTags = tags.filter(tag => tag && tag.trim());
+        if (!searchQuery) return baseTags;
         const lowerSearch = searchQuery.toLowerCase();
-        return tags.filter(tag => tag.toLowerCase().includes(lowerSearch));
+        return baseTags.filter(tag => tag.toLowerCase().includes(lowerSearch));
     }, [tags, searchQuery]);
 
     const handleAddTag = () => {
@@ -106,7 +114,7 @@ export function TagManagerModal({
                             ) : (
                                 filteredTags.map((tag, index) => (
                                     <motion.div
-                                        key={tag}
+                                        key={`${tag}-${index}`}
                                         className="flex items-center justify-between p-3 rounded-lg bg-bg-hover border border-border/50 hover:border-accent/40 transition-colors group"
                                         initial={{ opacity: 0, x: -10 }}
                                         animate={{ opacity: 1, x: 0 }}
@@ -120,9 +128,15 @@ export function TagManagerModal({
                                         </div>
                                         <motion.button
                                             onClick={() => {
-                                                if (window.confirm(`Delete tag "${tag}"?`)) {
-                                                    onDeleteTag(tag);
-                                                }
+                                                setConfirmState({
+                                                    isOpen: true,
+                                                    title: "Delete Tag",
+                                                    description: `Are you sure you want to delete tag "${tag}"?`,
+                                                    action: () => {
+                                                        onDeleteTag(tag);
+                                                        setConfirmState(prev => ({ ...prev, isOpen: false }));
+                                                    }
+                                                });
                                             }}
                                             className="p-1.5 rounded-lg text-text-secondary hover:text-red-400 hover:bg-red-400/10 opacity-0 group-hover:opacity-100 transition-all"
                                             whileHover={{ scale: 1.1 }}
@@ -149,6 +163,15 @@ export function TagManagerModal({
                     </motion.div>
                 </motion.div>
             )}
+            <ConfirmDialog
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                description={confirmState.description}
+                onConfirm={confirmState.action}
+                onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+                danger
+                confirmText="Delete"
+            />
         </AnimatePresence>
     );
 }

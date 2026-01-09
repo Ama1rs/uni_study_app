@@ -1,6 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { Resource } from '../RepositoryView';
+import { BookReader } from '@/features/books/BookReader';
+import { ImageViewer } from '@/features/resources/ImageViewer';
 
 interface ResourcePreviewModalProps {
     resource: Resource | null;
@@ -15,6 +17,14 @@ export function ResourcePreviewModal({
     onClose,
     onOpenExternally
 }: ResourcePreviewModalProps) {
+    // Check if resource is a book format
+    const isBookFormat = resource && ['epub', 'azw3', 'fb2', 'ibooks'].includes(resource.type.toLowerCase());
+
+    // If it's a book, render BookReader directly without the modal wrapper
+    if (isBookFormat && resource) {
+        return <BookReader resource={resource} onClose={onClose} />;
+    }
+
     return (
         <AnimatePresence>
             {resource && (
@@ -72,13 +82,10 @@ export function ResourcePreviewModal({
                             )}
 
                             {resource.type === 'image' && previewUrl && (
-                                <motion.img
+                                <ImageViewer
                                     src={previewUrl}
                                     alt={resource.title}
-                                    className="max-h-full max-w-full object-contain"
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: 0.3 }}
+                                    title={resource.title}
                                 />
                             )}
 

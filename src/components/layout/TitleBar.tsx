@@ -137,7 +137,7 @@ export function TitleBar({
         {onOpenSettings && (
           <button
             onClick={onOpenSettings}
-            className="px-3 h-full flex items-center justify-center text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
+            className="px-3 h-full flex items-center justify-center text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors titlebar-settings"
             type="button"
             title="Settings"
           >
@@ -147,7 +147,7 @@ export function TitleBar({
         {onLogout && (
           <button
             onClick={onLogout}
-            className="px-3 h-full text-xs text-text-tertiary hover:text-red-400 hover:bg-bg-hover transition-colors font-mono"
+            className="px-3 h-full text-xs text-text-tertiary hover:text-red-400 hover:bg-bg-hover transition-colors font-mono titlebar-logout"
             type="button"
             title="Logout"
           >

@@ -81,9 +81,7 @@ export function FlowModal({ flows, onClose }: FlowModalProps) {
                 className="bg-[#0f0f0f] border border-white/5 rounded-[2.5rem] p-10 w-full max-w-6xl shadow-2xl relative overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Subtle light leak effect */}
-                <div className="absolute -top-24 -left-24 w-96 h-96 bg-blue-500/10 blur-[120px] rounded-full" />
-                <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-emerald-500/10 blur-[120px] rounded-full" />
+
 
                 <div className="flex justify-between items-start mb-10 relative z-10">
                     <div>

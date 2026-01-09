@@ -23,10 +23,13 @@ detectDisplayRefreshRate().then(() => {
   console.log('✓ Rendering system fully initialized');
 });
 
+import { Toaster } from 'sonner';
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <ThemeProvider>
       <App />
+      <Toaster position="bottom-right" theme="dark" richColors />
     </ThemeProvider>
   </React.StrictMode>,
 );

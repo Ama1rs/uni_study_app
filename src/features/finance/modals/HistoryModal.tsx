@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { X, Search, History as HistoryIcon, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { financeService, FinanceTransaction } from '@/lib/financeService';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface HistoryModalProps {
     transactions: FinanceTransaction[];
@@ -12,6 +13,12 @@ interface HistoryModalProps {
 
 export function HistoryModal({ transactions, onClose, onUpdate }: HistoryModalProps) {
     const [search, setSearch] = useState('');
+    const [confirmState, setConfirmState] = useState<{
+        isOpen: boolean;
+        title: string;
+        description: string;
+        action: () => void;
+    }>({ isOpen: false, title: '', description: '', action: () => { } });
 
     const filtered = transactions.filter(t =>
         t.label.toLowerCase().includes(search.toLowerCase()) ||
@@ -19,14 +26,20 @@ export function HistoryModal({ transactions, onClose, onUpdate }: HistoryModalPr
     );
 
     const handleDelete = async (id: number) => {
-        if (confirm('Delete this transaction?')) {
-            try {
-                await financeService.deleteTransaction(id);
-                onUpdate();
-            } catch (error) {
-                console.error('Failed to delete:', error);
+        setConfirmState({
+            isOpen: true,
+            title: 'Delete Transaction',
+            description: 'Are you sure you want to delete this transaction?',
+            action: async () => {
+                try {
+                    await financeService.deleteTransaction(id);
+                    onUpdate();
+                    setConfirmState(prev => ({ ...prev, isOpen: false }));
+                } catch (error) {
+                    console.error('Failed to delete:', error);
+                }
             }
-        }
+        });
     };
 
     return (
@@ -104,6 +117,15 @@ export function HistoryModal({ transactions, onClose, onUpdate }: HistoryModalPr
                     </table>
                 </div>
             </motion.div>
+            <ConfirmDialog
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                description={confirmState.description}
+                onConfirm={confirmState.action}
+                onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+                danger
+                confirmText="Delete"
+            />
         </motion.div>
     );
 }

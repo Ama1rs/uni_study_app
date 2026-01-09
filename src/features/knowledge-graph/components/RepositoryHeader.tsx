@@ -80,31 +80,27 @@ export function RepositoryHeader({
                 >
                     <motion.button
                         onClick={() => setActiveView('graph')}
-                        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${activeView === 'graph' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
-                        whileHover={{ scale: 1.05 }}
+                        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${activeView === 'graph' ? 'bg-white/10 text-white shadow-sm' : 'text-text-tertiary hover:text-text-primary'}`}
                         whileTap={{ scale: 0.95 }}
                     >
-                        Graph
+                        Concept Map
                     </motion.button>
                     <motion.button
                         onClick={() => setActiveView('list')}
-                        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${activeView === 'list' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
-                        whileHover={{ scale: 1.05 }}
+                        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${activeView === 'list' ? 'bg-white/10 text-white shadow-sm' : 'text-text-tertiary hover:text-text-primary'}`}
                         whileTap={{ scale: 0.95 }}
                     >
                         List
                     </motion.button>
+                    <div className="w-px bg-white/10 my-1 mx-1" />
+                    <motion.button
+                        onClick={() => setActiveView('videos')}
+                        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${activeView === 'videos' ? 'bg-white/10 text-white shadow-sm' : 'text-text-tertiary hover:text-text-primary'}`}
+                        whileTap={{ scale: 0.95 }}
+                    >
+                        Video
+                    </motion.button>
                 </motion.div>
-                <motion.button
-                    onClick={() => setActiveView('videos')}
-                    className={`px-3 py-2 rounded-lg border text-sm font-medium transition-all ${activeView === 'videos' ? 'bg-white/10 text-white border-accent/70' : 'text-gray-300 hover:text-white hover:border-accent/50'}`}
-                    style={{ borderColor: 'var(--border)' }}
-                    title="YouTube Videos"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                >
-                    Video
-                </motion.button>
 
                 <motion.button
                     onClick={() => setShowStressTest(!showStressTest)}

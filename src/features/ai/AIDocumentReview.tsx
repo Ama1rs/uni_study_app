@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, FileText, Sparkles, Download, Save, Edit3, RotateCcw, CheckCircle } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
+import ReactMarkdown from 'react-markdown';
 
 interface AIDocumentReviewProps {
     onBack: () => void;
@@ -65,12 +66,11 @@ export function AIDocumentReview({
     };
 
     return (
-        <div className="w-full h-full p-8 flex flex-col gap-8 overflow-y-auto custom-scrollbar bg-bg-primary">
-            {/* Header */}
+        <div className="w-full h-full flex flex-col gap-8 overflow-y-auto custom-scrollbar">
             <motion.div
                 className="flex items-center justify-between"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
             >
                 <div className="flex items-center gap-4">
                     <button
@@ -143,9 +143,9 @@ export function AIDocumentReview({
                                         className="w-full h-96 px-3 py-2 bg-bg-surface border border-border rounded-lg text-text-primary placeholder-text-tertiary focus:border-accent focus:outline-none resize-none font-mono text-sm"
                                     />
                                 ) : (
-                                    <pre className="whitespace-pre-wrap text-text-primary font-sans text-sm leading-relaxed">
-                                        {editedContent}
-                                    </pre>
+                                    <div className="prose prose-invert max-w-none">
+                                        <ReactMarkdown>{editedContent}</ReactMarkdown>
+                                    </div>
                                 )}
                             </div>
                         )}

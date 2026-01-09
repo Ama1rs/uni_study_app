@@ -4,6 +4,8 @@ import { openPath } from '@tauri-apps/plugin-opener';
 import { motion } from 'framer-motion';
 import { X, ArrowLeft, ExternalLink, FileText, FileIcon } from 'lucide-react';
 import { Resource } from '../../types/node-system';
+import { BookReader } from '../books/BookReader';
+import { ImageViewer } from './ImageViewer';
 
 interface ResourcePreviewProps {
     resource: Resource;
@@ -12,7 +14,16 @@ interface ResourcePreviewProps {
 
 export function ResourcePreview({ resource, onClose }: ResourcePreviewProps) {
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+
+    // Check if resource is a book format
+    const isBookFormat = resource.type && ['epub', 'azw3', 'fb2', 'ibooks'].includes(resource.type.toLowerCase());
+
+    // If it's a book, render the BookReader directly
+    if (isBookFormat) {
+        return <BookReader resource={resource} onClose={onClose} />;
+    }
 
     useEffect(() => {
         let isMounted = true;
@@ -35,9 +46,34 @@ export function ResourcePreview({ resource, onClose }: ResourcePreviewProps) {
             }
 
             try {
-                if (resource.type === 'pdf') {
+                if (resource.type === 'pdf' || resource.type === 'image') {
+                    // Revoke previous blob URL if exists
+                    if (previewBlobUrl) {
+                        try { URL.revokeObjectURL(previewBlobUrl); } catch (e) { }
+                    }
+
                     const base64 = await invoke<string>('read_file_base64', { path: resource.path });
-                    if (isMounted) setPreviewUrl(`data:application/pdf;base64,${base64}`);
+
+                    if (isMounted) {
+                        try {
+                            const binaryString = atob(base64);
+                            const len = binaryString.length;
+                            const bytes = new Uint8Array(len);
+                            for (let i = 0; i < len; i++) {
+                                bytes[i] = binaryString.charCodeAt(i);
+                            }
+                            const mimeType = resource.type === 'pdf'
+                                ? 'application/pdf'
+                                : `image/${raw.split('.').pop()?.toLowerCase() || 'png'}`;
+                            const blob = new Blob([bytes], { type: mimeType });
+                            const blobUrl = URL.createObjectURL(blob);
+                            setPreviewBlobUrl(blobUrl);
+                            setPreviewUrl(blobUrl);
+                        } catch (e) {
+                            console.error('Failed to construct blob:', e);
+                            setPreviewUrl(`data:image/png;base64,${base64}`);
+                        }
+                    }
                 } else {
                     const localUrl = convertFileSrc(raw);
                     if (isMounted) setPreviewUrl(localUrl);
@@ -54,6 +90,9 @@ export function ResourcePreview({ resource, onClose }: ResourcePreviewProps) {
 
         return () => {
             isMounted = false;
+            if (previewBlobUrl) {
+                try { URL.revokeObjectURL(previewBlobUrl); } catch (e) { }
+            }
         };
     }, [resource]);
 
@@ -92,12 +131,10 @@ export function ResourcePreview({ resource, onClose }: ResourcePreviewProps) {
                 ) : null;
             case 'image':
                 return previewUrl ? (
-                    <motion.img
+                    <ImageViewer
                         src={previewUrl}
                         alt={resource.title}
-                        className="max-h-full max-w-full object-contain rounded-lg shadow-2xl"
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
+                        title={resource.title}
                     />
                 ) : null;
             case 'video':

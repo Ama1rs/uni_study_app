@@ -5,7 +5,6 @@ import {
     FileText,
     Presentation,
     Clock,
-    Star,
     Plus,
     Search,
     PenTool
@@ -70,91 +69,81 @@ export function StudioPage({ onViewResource, setActiveView }: StudioPageProps) {
                 </div>
             </motion.div>
 
-            {/* Bento Grid */}
+            {/* Main Layout: Split View */}
             <motion.div
-                className="grid grid-cols-1 md:grid-cols-4 gap-6"
+                className="flex gap-8 h-full"
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
             >
-                {/* 1. Quick Create: Document */}
-                <motion.button
-                    className="md:col-span-1 glass-card p-6 rounded-3xl flex flex-col justify-between hover:border-accent/50 transition-colors group text-left shadow-xl"
-                    variants={itemVariants}
-                    onClick={() => setActiveView('ai-document-create')}
-                >
-                    <div className="p-3 bg-blue-400/10 rounded-2xl w-fit group-hover:scale-110 transition-transform">
-                        <FileText className="text-blue-400" size={24} />
-                    </div>
-                    <div>
-                        <h4 className="text-xl font-bold text-text-primary group-hover:text-accent transition-colors">New Document</h4>
-                        <p className="text-text-tertiary text-xs mt-1">Rich text & LaTeX support</p>
-                    </div>
-                    <div className="flex items-center justify-between mt-4">
-                        <span className="text-[10px] text-text-tertiary font-mono uppercase tracking-widest">MD / TXT</span>
-                        <Plus size={16} className="text-text-tertiary group-hover:text-accent" />
-                    </div>
-                </motion.button>
+                {/* Left: Create Tools */}
+                <motion.div className="w-64 shrink-0 flex flex-col gap-4" variants={itemVariants}>
+                    <h3 className="text-xs font-mono text-text-tertiary uppercase tracking-widest mb-2">Create New</h3>
 
-                {/* 2. Quick Create: Presentation */}
-                <motion.button
-                    className="md:col-span-1 glass-card p-6 rounded-3xl flex flex-col justify-between hover:border-accent/50 transition-colors group text-left shadow-xl"
-                    variants={itemVariants}
-                    onClick={() => setActiveView('ai-presentation-create')}
-                >
-                    <div className="p-3 bg-purple-400/10 rounded-2xl w-fit group-hover:scale-110 transition-transform">
-                        <Presentation className="text-purple-400" size={24} />
-                    </div>
-                    <div>
-                        <h4 className="text-xl font-bold text-text-primary group-hover:text-accent transition-colors">Presentation</h4>
-                        <p className="text-text-tertiary text-xs mt-1">Dynamic slide creation</p>
-                    </div>
-                    <div className="flex items-center justify-between mt-4">
-                        <span className="text-[10px] text-text-tertiary font-mono uppercase tracking-widest">SLIDES / PPT</span>
-                        <Plus size={16} className="text-text-tertiary group-hover:text-accent" />
-                    </div>
-                </motion.button>
+                    <button
+                        onClick={() => setActiveView('ai-document-create')}
+                        className="flex items-center gap-3 p-3 rounded-sm border border-border hover:bg-bg-hover hover:border-accent/50 transition-all group text-left"
+                    >
+                        <FileText className="text-blue-400 group-hover:text-blue-300" size={20} />
+                        <div>
+                            <span className="block text-sm font-bold text-text-primary">Document</span>
+                            <span className="text-[10px] text-text-tertiary font-mono">MARKDOWN / LATEX</span>
+                        </div>
+                    </button>
 
-                {/* 3. Resource Manipulation Tools (PDF/Image) */}
-                <StudioResourceTools />
+                    <button
+                        onClick={() => setActiveView('ai-presentation-create')}
+                        className="flex items-center gap-3 p-3 rounded-sm border border-border hover:bg-bg-hover hover:border-accent/50 transition-all group text-left"
+                    >
+                        <Presentation className="text-purple-400 group-hover:text-purple-300" size={20} />
+                        <div>
+                            <span className="block text-sm font-bold text-text-primary">Presentation</span>
+                            <span className="text-[10px] text-text-tertiary font-mono">SLIDES</span>
+                        </div>
+                    </button>
 
-                {/* 4. Recent Work (Horizontal List) */}
-                <motion.div
-                    className="md:col-span-4 glass-card p-6 rounded-3xl shadow-xl overflow-hidden"
-                    variants={itemVariants}
-                >
+                    {/* Studio Tools (PDF/Image) - Assuming StudioResourceTools can render list items if passed a prop, or wrapped */}
+                    <div className="mt-4 pt-4 border-t border-border">
+                        <StudioResourceTools />
+                    </div>
+                </motion.div>
+
+                {/* Right: Recent Files Table */}
+                <motion.div className="flex-1 min-w-0" variants={itemVariants}>
                     <div className="flex items-center gap-2 mb-6">
-                        <Clock size={18} className="text-text-tertiary" />
-                        <h3 className="text-sm font-mono text-text-secondary uppercase tracking-widest">Recent Workspace</h3>
+                        <Clock size={16} className="text-text-tertiary" />
+                        <h3 className="text-xs font-mono text-text-tertiary uppercase tracking-widest">Recent Workspace</h3>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        {recentCreations.length > 0 ? (
-                            recentCreations.map((res) => (
-                                <button
+                    <div className="border border-border rounded-sm overflow-hidden">
+                        <div className="grid grid-cols-12 gap-4 p-3 bg-bg-surface border-b border-border text-xs font-mono text-text-tertiary uppercase tracking-wider">
+                            <div className="col-span-6">Name</div>
+                            <div className="col-span-3">Type</div>
+                            <div className="col-span-3 text-right">Date</div>
+                        </div>
+                        <div className="divide-y divide-border">
+                            {recentCreations.map((res) => (
+                                <div
                                     key={res.id}
                                     onClick={() => onViewResource(res)}
-                                    className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-accent/30 hover:bg-accent/5 transition-all group text-left min-w-0"
+                                    className="grid grid-cols-12 gap-4 p-3 hover:bg-bg-hover cursor-pointer transition-colors group items-center"
                                 >
-                                    <div className="p-3 bg-bg-primary rounded-xl text-text-tertiary group-hover:text-accent transition-colors h-fit">
-                                        {res.type === 'ppt' ? <Presentation size={20} /> : <FileText size={20} />}
+                                    <div className="col-span-6 flex items-center gap-3 overflow-hidden">
+                                        {res.type === 'ppt' ? <Presentation size={16} className="text-purple-400 shrink-0" /> : <FileText size={16} className="text-blue-400 shrink-0" />}
+                                        <span className="text-sm text-text-primary truncate">{res.title}</span>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-bold text-text-primary truncate group-hover:text-accent transition-colors">{res.title}</p>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <span className="text-[10px] text-text-tertiary font-mono uppercase truncate">{res.type}</span>
-                                            <span className="text-[10px] text-text-tertiary opacity-40">•</span>
-                                            <span className="text-[10px] text-text-tertiary truncate">{new Date(res.updated_at || res.created_at || '').toLocaleDateString()}</span>
-                                        </div>
+                                    <div className="col-span-3">
+                                        <span className="text-[10px] bg-bg-surface border border-border px-1.5 py-0.5 rounded text-text-secondary uppercase">{res.type}</span>
                                     </div>
-                                    <Star size={14} className="text-text-tertiary hover:text-yellow-400 shrink-0" />
-                                </button>
-                            ))
-                        ) : (
-                            <div className="md:col-span-4 py-8 text-center border border-dashed border-white/10 rounded-2xl">
-                                <p className="text-text-tertiary text-sm font-mono">No recent files found in studio</p>
-                            </div>
-                        )}
+                                    <div className="col-span-3 text-right text-xs text-text-tertiary font-mono">
+                                        {new Date(res.updated_at || res.created_at || '').toLocaleDateString()}
+                                    </div>
+                                </div>
+                            ))}
+                            {recentCreations.length === 0 && (
+                                <div className="p-8 text-center text-text-tertiary text-sm font-mono">No recent files found in studio</div>
+                            )}
+                        </div>
                     </div>
                 </motion.div>
             </motion.div>

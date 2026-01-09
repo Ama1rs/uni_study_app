@@ -116,6 +116,22 @@ pub fn run_profile_migrations(conn: &Connection) -> Result<()> {
             "0015_add_study_stats",
             include_str!("../migrations/0015_add_study_stats.sql"),
         ),
+        (
+            "0016_enhance_lectures",
+            include_str!("../migrations/0016_enhance_lectures.sql"),
+        ),
+        (
+            "0017_add_book_library",
+            include_str!("../migrations/0017_add_book_library.sql"),
+        ),
+        (
+            "0018_add_graph_settings",
+            include_str!("../migrations/0018_add_graph_settings.sql"),
+        ),
+        (
+            "0019_add_missing_graph_settings",
+            include_str!("../migrations/0019_add_missing_graph_settings.sql"),
+        ),
     ];
 
     apply_migrations(conn, migrations)
@@ -935,10 +951,12 @@ pub fn create_lecture(
     title: String,
     url: String,
     thumbnail: Option<String>,
+    group_name: Option<String>,
+    order_index: Option<i32>,
 ) -> Result<i64, String> {
     conn.execute(
-        "INSERT INTO lectures (repository_id, course_id, title, url, thumbnail) VALUES (?1, ?2, ?3, ?4, ?5)",
-        (&repository_id, &repository_id, &title, &url, &thumbnail),
+        "INSERT INTO lectures (repository_id, course_id, title, url, thumbnail, group_name, order_index) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        (&repository_id, &repository_id, &title, &url, &thumbnail, &group_name, &order_index),
     ).map_err(|e| e.to_string())?;
     Ok(conn.last_insert_rowid())
 }
@@ -946,9 +964,10 @@ pub fn create_lecture(
 pub fn get_lectures(conn: &Connection, repository_id: i64) -> Result<Vec<Lecture>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, COALESCE(repository_id, course_id) as repo_id, title, url, thumbnail 
+            "SELECT id, COALESCE(repository_id, course_id) as repo_id, title, url, thumbnail, group_name, is_completed, order_index 
              FROM lectures 
-             WHERE repository_id = ?1 OR course_id = ?1",
+             WHERE repository_id = ?1 OR course_id = ?1
+             ORDER BY group_name, order_index ASC, id ASC",
         )
         .map_err(|e| e.to_string())?;
     let rows = stmt
@@ -959,6 +978,9 @@ pub fn get_lectures(conn: &Connection, repository_id: i64) -> Result<Vec<Lecture
                 title: row.get(2)?,
                 url: row.get(3)?,
                 thumbnail: row.get(4)?,
+                group_name: row.get(5)?,
+                is_completed: row.get::<_, i32>(6)? != 0,
+                order_index: row.get(7)?,
             })
         })
         .map_err(|e| e.to_string())?;

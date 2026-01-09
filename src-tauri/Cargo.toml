@@ -39,5 +39,6 @@ oxipng = "10"
 # llama.cpp bindings
 llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", branch = "main" }
 llama-cpp-sys-2 = { git = "https://github.com/utilityai/llama-cpp-rs", branch = "main" }
+chrono = { version = "0.4.42", features = ["serde"] }
 
 

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ComponentConfig, ComponentScore, GradingScale } from '../../types/grading';
-import { X, Plus, Trash2, Calculator } from 'lucide-react';
+import { X, Plus, Trash2, Calculator, Award } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '../../lib/utils';
 
 interface ExtendedRepository {
     id: number;
@@ -78,231 +80,341 @@ export function CourseGradeDialog({ course, isOpen, onClose, onUpdate, scales }:
                     scale_id: scale.id
                 });
                 setConvertedGrade(converted);
-            } catch (error) {
-                console.error('Conversion error:', error);
+            } catch (e) {
+                console.error('Conversion failed:', e);
                 setConvertedGrade(null);
             } finally {
                 setIsConverting(false);
             }
         };
 
-        // Debounce conversion calls
         const timer = setTimeout(convertGrade, 300);
         return () => clearTimeout(timer);
     }, [manualGrade, selectedScaleId, mode, scales]);
 
-    const addComponent = () => {
-        setConfigs([...configs, { name: 'New Component', weight: 0.2 }]);
-    };
-
-    const removeComponent = (idx: number) => {
-        const newConfigs = [...configs];
-        const removed = newConfigs.splice(idx, 1)[0];
-        setConfigs(newConfigs);
-        // Remove score if exists
-        setScores(scores.filter(s => s.name !== removed.name));
-    };
-
-    const updateConfig = (idx: number, field: keyof ComponentConfig, val: any) => {
-        const newConfigs = [...configs];
-        // @ts-ignore
-        newConfigs[idx][field] = val;
-        setConfigs(newConfigs);
-        // Rename score if name changed
-        if (field === 'name') {
-            // Logic to rename score entry too? Complex. Let's assume user re-enters score.
-        }
-    };
-
-    const updateScore = (name: string, val: number) => {
-        const newScores = scores.filter(s => s.name !== name);
-        newScores.push({ name, score: val });
-        setScores(newScores);
-    };
-
-    const getScore = (name: string) => scores.find(s => s.name === name)?.score || '';
-
-    // Calculate current weighted score
-    const currentTotal = configs.reduce((acc, conf) => {
-        const s = scores.find(sc => sc.name === conf.name);
-        if (s) return acc + (s.score * conf.weight);
-        return acc;
-    }, 0);
-
-    const totalWeight = configs.reduce((acc, conf) => acc + conf.weight, 0);
-
     const handleSave = async () => {
         try {
-            await invoke('update_course_grade_details', {
-                repository_id: course.id,
-                credits: course.credits,
-                semester_id: course.semester_id,
-                manual_grade: mode === 'direct' ? (parseFloat(manualGrade) || null) : null,
-                status: course.status,
-                component_config: mode === 'component' ? JSON.stringify(configs) : null,
-                component_scores: mode === 'component' ? JSON.stringify(scores) : null,
-                grading_scale_id: selectedScaleId
-            });
+            if (mode === 'direct') {
+                const grade = parseFloat(manualGrade);
+                if (isNaN(grade)) {
+                    alert('Please enter a valid grade');
+                    return;
+                }
+                await invoke('update_course_grade_details', {
+                    repositoryId: course.id,
+                    credits: course.credits,
+                    semesterId: course.semester_id,
+                    manualGrade: grade,
+                    status: 'completed',
+                    gradingScaleId: selectedScaleId || scales[0]?.id
+                });
+            } else {
+                // Component-based grading
+                const totalWeight = configs.reduce((sum, c) => sum + c.weight, 0);
+                if (Math.abs(totalWeight - 100) > 0.01) {
+                    alert('Component weights must sum to 100%');
+                    return;
+                }
+
+                const totalScore = scores.reduce((sum, s) => {
+                    const config = configs.find(c => c.name === s.name);
+                    if (!config) return sum;
+                    const max = s.max_score || 100;
+                    const percentage = (s.score / max) * 100;
+                    return sum + (percentage * config.weight / 100);
+                }, 0);
+
+                await invoke('update_course_grade_details', {
+                    repositoryId: course.id,
+                    credits: course.credits,
+                    semesterId: course.semester_id,
+                    manualGrade: totalScore / 10, // Assuming 10-point scale
+                    status: 'completed',
+                    gradingScaleId: selectedScaleId || scales[0]?.id,
+                    componentConfig: JSON.stringify(configs),
+                    componentScores: JSON.stringify(scores)
+                });
+            }
             onUpdate();
             onClose();
         } catch (e) {
-            console.error(e);
+            console.error('Failed to save:', e);
+            alert('Failed to save grade: ' + e);
         }
+    };
+
+    const addComponent = () => {
+        const newName = `Component ${configs.length + 1}`;
+        setConfigs([...configs, { name: newName, weight: 0 }]);
+        setScores([...scores, { name: newName, score: 0, max_score: 100 }]);
+    };
+
+    const removeComponent = (index: number) => {
+        const name = configs[index].name;
+        setConfigs(configs.filter((_, i) => i !== index));
+        setScores(scores.filter(s => s.name !== name));
+    };
+
+    const updateConfig = (index: number, field: keyof ComponentConfig, value: any) => {
+        const newConfigs = [...configs];
+        newConfigs[index] = { ...newConfigs[index], [field]: value };
+        setConfigs(newConfigs);
+
+        if (field === 'name') {
+            const oldName = configs[index].name;
+            const newScores = scores.map(s => s.name === oldName ? { ...s, name: value } : s);
+            setScores(newScores);
+        }
+    };
+
+    const updateScore = (name: string, field: keyof ComponentScore, value: number) => {
+        const newScores = scores.map(s => s.name === name ? { ...s, [field]: value } : s);
+        setScores(newScores);
+    };
+
+    const calculateComponentGrade = () => {
+        const totalWeight = configs.reduce((sum, c) => sum + c.weight, 0);
+        if (totalWeight === 0) return 0;
+
+        return scores.reduce((sum, s) => {
+            const config = configs.find(c => c.name === s.name);
+            if (!config) return sum;
+            const max = s.max_score || 100;
+            const percentage = (s.score / max) * 100;
+            return sum + (percentage * config.weight / 100);
+        }, 0) / 10; // Convert to 10-point scale
     };
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div className="glass-card w-[600px] p-6 rounded-lg border border-white/10 shadow-xl bg-bg-surface flex flex-col max-h-[80vh]">
-                <div className="flex justify-between items-center mb-6">
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <motion.div
+                initial={{ opacity: 0, scale: 0.96, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 20 }}
+                className="glass-card w-[600px] max-h-[85vh] flex flex-col p-6 rounded-xl border border-border/50 shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className="flex justify-between items-start mb-6">
                     <div>
-                        <h2 className="text-xl font-bold text-white font-mono">{course.name}</h2>
-                        <p className="text-xs text-text-tertiary font-mono uppercase tracking-wider">Grade Details</p>
+                        <div className="flex items-center gap-2 mb-1.5">
+                            <div className="p-1.5 rounded-lg bg-border/20">
+                                <Award size={18} className="text-text-secondary" />
+                            </div>
+                            <h2 className="text-xl font-bold text-text-primary">Edit Grade</h2>
+                        </div>
+                        <p className="text-xs text-text-tertiary ml-9">{course.name}</p>
                     </div>
-                    <button onClick={onClose} className="text-text-tertiary hover:text-white transition-colors">
-                        <X size={20} />
+                    <button
+                        onClick={onClose}
+                        className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-border/20 transition-all"
+                    >
+                        <X size={18} />
                     </button>
                 </div>
 
-                <div className="flex bg-bg-primary p-1 rounded-lg mb-6 self-start border border-border">
+                {/* Mode Toggle */}
+                <div className="flex gap-2 mb-5 p-1 bg-border/10 rounded-lg">
                     <button
                         onClick={() => setMode('direct')}
-                        className={`px-4 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition-all ${mode === 'direct' ? 'bg-white/10 text-white' : 'text-text-tertiary hover:text-text-secondary'}`}
+                        className={cn(
+                            "flex-1 py-2 px-3 rounded text-xs font-medium transition-all",
+                            mode === 'direct'
+                                ? "bg-blue-500 text-white shadow-sm"
+                                : "text-text-tertiary hover:text-text-primary"
+                        )}
                     >
-                        Direct Entry
+                        Direct Grade Entry
                     </button>
                     <button
                         onClick={() => setMode('component')}
-                        className={`px-4 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition-all ${mode === 'component' ? 'bg-white/10 text-white' : 'text-text-tertiary hover:text-text-secondary'}`}
+                        className={cn(
+                            "flex-1 py-2 px-3 rounded text-xs font-medium transition-all",
+                            mode === 'component'
+                                ? "bg-blue-500 text-white shadow-sm"
+                                : "text-text-tertiary hover:text-primary"
+                        )}
                     >
-                        Components
+                        Component-Based
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto pr-2">
-                    {mode === 'direct' ? (
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs uppercase text-text-tertiary font-bold tracking-wider mb-1 font-mono">Final Grade Point</label>
-                                <input
-                                    type="number"
-                                    className="w-full bg-bg-primary border border-border rounded px-3 py-2 text-lg font-mono outline-none focus:border-accent text-white"
-                                    value={manualGrade}
-                                    onChange={e => setManualGrade(e.target.value)}
-                                    placeholder="e.g. 9.0 or 4.0"
-                                />
-                                <p className="text-[10px] text-text-tertiary mt-2">Enter the final point value directly. Useful for historical data or simple grading.</p>
-                            </div>
-
-                            {/* Grade Conversion Display */}
-                            {manualGrade && (
-                                <div className="p-4 bg-accent/10 rounded-lg border border-accent/30">
-                                    <p className="text-xs text-text-tertiary font-mono uppercase mb-3">Grade Conversion</p>
-                                    <div className="space-y-2">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-xs text-text-secondary">Input Value:</span>
-                                            <span className="text-sm font-mono font-bold text-white">{manualGrade}</span>
-                                        </div>
-                                        {selectedScaleId && (
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-xs text-text-secondary">Scale:</span>
-                                                <span className="text-xs font-mono text-accent">{scales.find(s => s.id === selectedScaleId)?.name}</span>
-                                            </div>
-                                        )}
-                                        {isConverting && (
-                                            <div className="flex justify-between items-center py-1">
-                                                <span className="text-xs text-text-secondary">Converted Value:</span>
-                                                <span className="text-xs font-mono text-text-tertiary animate-pulse">Converting...</span>
-                                            </div>
-                                        )}
-                                        {!isConverting && convertedGrade !== null && (
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-xs text-text-secondary">Converted to 4.0 Scale:</span>
-                                                <span className="text-lg font-mono font-bold text-accent">{convertedGrade.toFixed(2)}</span>
-                                            </div>
-                                        )}
-                                    </div>
+                <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 mb-5">
+                    <AnimatePresence mode="wait">
+                        {mode === 'direct' ? (
+                            <motion.div
+                                key="direct"
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: 10 }}
+                                className="space-y-4"
+                            >
+                                {/* Grading Scale Selection */}
+                                <div>
+                                    <label className="block text-[10px] uppercase text-text-tertiary font-medium tracking-wider mb-2">
+                                        Grading Scale
+                                    </label>
+                                    <select
+                                        value={selectedScaleId || scales[0]?.id || ''}
+                                        onChange={(e) => setSelectedScaleId(parseInt(e.target.value))}
+                                        className="w-full px-3 py-2 bg-bg-surface border border-border/40 rounded-lg text-sm text-text-primary focus:border-blue-500/50 focus:outline-none transition-colors"
+                                    >
+                                        {scales.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </select>
                                 </div>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            <div className="flex justify-between items-end border-b border-border/50 pb-2 mb-2">
-                                <span className="text-xs font-mono text-text-tertiary uppercase">Components</span>
-                                <span className="text-xs font-mono text-accent">Total Weight: {totalWeight.toFixed(2)}</span>
-                            </div>
 
-                            {configs.map((conf, idx) => (
-                                <div key={idx} className="flex gap-2 items-center mb-2">
-                                    <input
-                                        className="flex-1 bg-bg-primary border border-border rounded px-2 py-1.5 text-sm outline-none focus:border-accent text-white font-mono"
-                                        value={conf.name}
-                                        onChange={e => updateConfig(idx, 'name', e.target.value)}
-                                        placeholder="Name"
-                                    />
-                                    <div className="w-20 relative">
-                                        <input
-                                            type="number"
-                                            className="w-full bg-bg-primary border border-border rounded px-2 py-1.5 text-sm outline-none focus:border-accent text-white font-mono text-right pr-6"
-                                            value={conf.weight}
-                                            onChange={e => updateConfig(idx, 'weight', parseFloat(e.target.value))}
-                                            step="0.1"
-                                        />
-                                        <span className="absolute right-2 top-1.5 text-xs text-text-tertiary">%</span>
-                                    </div>
+                                {/* Grade Input */}
+                                <div>
+                                    <label className="block text-[10px] uppercase text-text-tertiary font-medium tracking-wider mb-2">
+                                        Final Grade
+                                    </label>
                                     <input
                                         type="number"
-                                        className="w-24 bg-bg-primary border border-border rounded px-2 py-1.5 text-sm outline-none focus:border-accent text-white font-mono text-right placeholder-text-tertiary"
-                                        placeholder="Score"
-                                        value={getScore(conf.name)}
-                                        onChange={e => updateScore(conf.name, parseFloat(e.target.value))}
+                                        step="0.01"
+                                        value={manualGrade}
+                                        onChange={(e) => setManualGrade(e.target.value)}
+                                        placeholder="Enter grade..."
+                                        className="w-full px-4 py-3 bg-bg-surface border border-border/40 rounded-lg text-lg font-bold text-text-primary focus:border-blue-500/50 focus:outline-none transition-colors"
                                     />
-                                    <button onClick={() => removeComponent(idx)} className="text-text-tertiary hover:text-red-400 p-1">
-                                        <Trash2 size={14} />
-                                    </button>
                                 </div>
-                            ))}
 
-                            <button onClick={addComponent} className="flex items-center gap-1 text-xs text-accent hover:underline font-mono mt-2">
-                                <Plus size={12} /> Add Component
-                            </button>
-
-                            <div className="mt-8 p-4 bg-white/5 rounded-lg border border-white/10 flex justify-between items-center">
-                                <div>
-                                    <p className="text-xs text-text-tertiary font-mono uppercase">Calculated Score</p>
-                                    <p className="text-2xl font-bold font-mono text-white">{currentTotal.toFixed(2)}</p>
+                                {/* Conversion Preview */}
+                                {convertedGrade !== null && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <Calculator size={14} className={isConverting ? "animate-spin text-blue-500" : "text-blue-500"} />
+                                                <span className="text-xs text-text-tertiary">
+                                                    {isConverting ? "Converting..." : "Converted to Points:"}
+                                                </span>
+                                            </div>
+                                            <span className="text-sm font-bold text-blue-500">
+                                                {convertedGrade.toFixed(2)}
+                                            </span>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </motion.div>
+                        ) : (
+                            <motion.div
+                                key="component"
+                                initial={{ opacity: 0, x: 10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -10 }}
+                                className="space-y-4"
+                            >
+                                {/* Components List */}
+                                <div className="space-y-2">
+                                    {configs.map((config, index) => {
+                                        const score = scores.find(s => s.name === config.name);
+                                        return (
+                                            <div key={index} className="p-3 rounded-lg bg-bg-surface border border-border/40">
+                                                <div className="flex items-start gap-2 mb-2">
+                                                    <input
+                                                        type="text"
+                                                        value={config.name}
+                                                        onChange={(e) => updateConfig(index, 'name', e.target.value)}
+                                                        className="flex-1 px-2 py-1 bg-bg-primary border border-border/30 rounded text-xs text-text-primary focus:border-blue-500/50 focus:outline-none"
+                                                        placeholder="Component name"
+                                                    />
+                                                    <button
+                                                        onClick={() => removeComponent(index)}
+                                                        className="p-1 text-text-tertiary hover:text-red-500 hover:bg-red-500/10 rounded transition-all"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <div>
+                                                        <label className="block text-[9px] text-text-tertiary uppercase mb-1">Weight %</label>
+                                                        <input
+                                                            type="number"
+                                                            value={config.weight}
+                                                            onChange={(e) => updateConfig(index, 'weight', parseFloat(e.target.value))}
+                                                            className="w-full px-2 py-1 bg-bg-primary border border-border/30 rounded text-xs text-text-primary focus:border-blue-500/50 focus:outline-none"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[9px] text-text-tertiary uppercase mb-1">Score</label>
+                                                        <input
+                                                            type="number"
+                                                            value={score?.score || 0}
+                                                            onChange={(e) => updateScore(config.name, 'score', parseFloat(e.target.value))}
+                                                            className="w-full px-2 py-1 bg-bg-primary border border-border/30 rounded text-xs text-text-primary focus:border-blue-500/50 focus:outline-none"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[9px] text-text-tertiary uppercase mb-1">Max</label>
+                                                        <input
+                                                            type="number"
+                                                            value={score?.max_score || 100}
+                                                            onChange={(e) => updateScore(config.name, 'max_score', parseFloat(e.target.value))}
+                                                            className="w-full px-2 py-1 bg-bg-primary border border-border/30 rounded text-xs text-text-primary focus:border-blue-500/50 focus:outline-none"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-                                <Calculator className="text-white/20" size={32} />
-                            </div>
-                        </div>
-                    )}
 
-                    <div className="mt-6 pt-4 border-t border-border/50">
-                        <label className="block text-xs uppercase text-text-tertiary font-bold tracking-wider mb-2 font-mono">Grading Scale Override (Optional)</label>
-                        <select
-                            className="w-full bg-bg-primary border border-border rounded px-3 py-2 text-sm outline-none focus:border-accent text-white font-mono"
-                            value={selectedScaleId || ''}
-                            onChange={e => setSelectedScaleId(e.target.value ? parseInt(e.target.value) : null)}
-                        >
-                            <option value="">Use Program Default</option>
-                            {scales.map(s => (
-                                <option key={s.id} value={s.id}>{s.name}</option>
-                            ))}
-                        </select>
-                    </div>
+                                {/* Add Component Button */}
+                                <button
+                                    onClick={addComponent}
+                                    className="w-full py-2 border border-dashed border-border/50 hover:border-border/70 rounded-lg text-xs text-text-tertiary hover:text-text-primary transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Plus size={14} />
+                                    Add Component
+                                </button>
+
+                                {/* Calculated Grade */}
+                                {configs.length > 0 && (
+                                    <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs text-text-tertiary">Calculated Grade:</span>
+                                            <span className="text-lg font-bold text-blue-500">
+                                                {calculateComponentGrade().toFixed(2)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
 
-                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-border">
-                    <button onClick={onClose} className="px-4 py-2 text-sm text-text-secondary hover:text-white font-mono">Cancel</button>
+                {/* Action Buttons */}
+                <div className="flex justify-end gap-2 pt-4 border-t border-border/30">
                     <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-xs text-text-secondary hover:text-text-primary font-medium transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <motion.button
                         onClick={handleSave}
-                        className="px-6 py-2 bg-accent text-black font-bold rounded text-sm font-mono"
+                        className="px-6 py-2 bg-blue-500 text-white font-medium rounded-lg text-xs hover:bg-blue-600 transition-all"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
                     >
                         Save Grade
-                    </button>
+                    </motion.button>
                 </div>
-            </div>
-        </div>
+            </motion.div>
+        </motion.div>
     );
 }

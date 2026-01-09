@@ -13,7 +13,7 @@ export function AssetItem({ icon: Icon, label, amount, color, percent, onClick }
     return (
         <div
             onClick={onClick}
-            className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-colors group cursor-pointer"
+            className="flex items-center justify-between p-3 rounded-xl hover:bg-bg-hover transition-colors group cursor-pointer"
         >
             <div className="flex items-center gap-4">
                 <div className={cn("p-2 rounded-lg", color, "bg-opacity-20")}>

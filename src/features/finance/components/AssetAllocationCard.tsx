@@ -1,94 +1,115 @@
-import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Plus, DollarSign, TrendingUp, CreditCard, Target } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
+import { Plus, MoreHorizontal } from 'lucide-react';
 import { FinanceAsset } from '@/lib/financeService';
-import { AssetItem } from './AssetItem';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 interface AssetAllocationCardProps {
     assets: FinanceAsset[];
     totalAssetsValue: number;
-    isCollapsed: boolean;
-    setIsCollapsed: (v: boolean) => void;
     onSelectAsset: (asset: FinanceAsset | null) => void;
     itemVariants: any;
 }
 
 export function AssetAllocationCard({
     assets,
-    totalAssetsValue,
-    isCollapsed,
-    setIsCollapsed,
     onSelectAsset,
     itemVariants
 }: AssetAllocationCardProps) {
+    const data = assets.map(asset => ({
+        name: asset.label,
+        value: asset.amount,
+        color: asset.color === 'bg-accent' ? '#f59e0b' : // amber-500
+            asset.type_ === 'cash' ? '#10b981' : // emerald-500
+                asset.type_ === 'stock' ? '#3b82f6' : // blue-500
+                    asset.type_ === 'crypto' ? '#a855f7' : // purple-500
+                        '#71717a' // zinc-500
+    }));
+
     return (
         <motion.div
-            className={cn(
-                "md:col-span-2 glass-card p-6 rounded-2xl flex flex-col transition-all duration-500",
-                isCollapsed ? "md:row-span-1" : "md:row-span-2"
-            )}
             variants={itemVariants}
+            className="flex flex-col h-full bg-bg-surface border border-border/10 rounded-sm"
         >
-            <div className="flex justify-between items-center mb-6">
-                <h3 className="text-sm font-mono text-text-secondary uppercase tracking-widest">Asset Allocation</h3>
-                <button
-                    onClick={() => setIsCollapsed(!isCollapsed)}
-                    className="p-1 hover:bg-white/5 rounded-md transition-colors"
-                >
-                    <ChevronDown
-                        size={18}
-                        className={cn("text-text-tertiary transition-transform duration-300", isCollapsed && "-rotate-90")}
-                    />
-                </button>
+            <div className="flex items-center justify-between p-3 bg-bg-card/20">
+                <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-orange-500" />
+                    <h3 className="text-xs font-mono font-bold text-text-secondary uppercase tracking-wider">Asset Allocation</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => onSelectAsset(null)}
+                        className="p-1 hover:bg-bg-hover rounded transition-colors text-text-tertiary hover:text-text-primary"
+                    >
+                        <Plus size={14} />
+                    </button>
+                    <button className="p-1 hover:bg-bg-hover rounded transition-colors text-text-tertiary hover:text-text-primary">
+                        <MoreHorizontal size={14} />
+                    </button>
+                </div>
             </div>
 
-            <AnimatePresence>
-                {!isCollapsed && (
-                    <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden flex flex-col flex-1"
-                    >
-                        <div className="space-y-4 flex-1">
-                            {assets.map((asset) => (
-                                <AssetItem
-                                    key={asset.id}
-                                    icon={asset.type_ === 'cash' ? DollarSign : asset.type_ === 'stock' ? TrendingUp : asset.type_ === 'crypto' ? CreditCard : Target}
-                                    label={asset.label}
-                                    amount={`$${asset.amount.toLocaleString()}`}
-                                    color={asset.color || 'bg-accent'}
-                                    percent={Math.round((asset.amount / (totalAssetsValue || 1)) * 100)}
-                                    onClick={() => onSelectAsset(asset)}
-                                />
-                            ))}
-                            <button
-                                onClick={() => onSelectAsset(null)}
-                                className="w-full p-3 rounded-xl border border-dashed border-border hover:border-accent/50 hover:bg-accent/5 transition-all text-text-tertiary text-xs font-mono uppercase tracking-widest flex items-center justify-center gap-2"
+            <div className="p-4 flex flex-col gap-6">
+                {/* CHART */}
+                <div className="h-[180px] w-full relative">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                            <Pie
+                                data={data}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={60}
+                                outerRadius={80}
+                                paddingAngle={2}
+                                dataKey="value"
+                                stroke="none"
                             >
-                                <Plus size={14} />
-                                Add New Asset
-                            </button>
-                        </div>
-
-                        <div className="mt-8 pt-6 border-t border-border">
-                            <div className="flex justify-between items-end mb-2">
-                                <span className="text-[10px] font-mono text-text-tertiary uppercase">Allocation Strategy</span>
-                                <span className="text-xs font-mono text-accent">Balanced</span>
-                            </div>
-                            <div className="w-full h-2 bg-bg-primary rounded-full overflow-hidden flex">
-                                {assets.map((asset, i) => (
-                                    <div
-                                        key={i}
-                                        className={cn(asset.color || "bg-accent", "h-full")}
-                                        style={{ width: `${(asset.amount / (totalAssetsValue || 1)) * 100}%` }}
-                                    />
+                                {data.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.color} />
                                 ))}
-                            </div>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                            </Pie>
+                            <Tooltip
+                                contentStyle={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)', fontSize: '12px' }}
+                                itemStyle={{ color: 'var(--text-primary)' }}
+                                formatter={(value: number) => `$${value.toLocaleString()}`}
+                            />
+                        </PieChart>
+                    </ResponsiveContainer>
+                    {/* Center Text */}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                        <span className="text-xs text-text-tertiary font-mono uppercase display-block">Total</span>
+                        <span className="text-lg font-mono font-bold text-text-primary block">
+                            ${(assets.reduce((a, b) => a + b.amount, 0) / 1000).toFixed(1)}k
+                        </span>
+                    </div>
+                </div>
+
+                {/* ASSET TABLE */}
+                <div className="flex flex-col rounded-sm overflow-hidden bg-bg-card/5">
+                    <div className="grid grid-cols-3 bg-bg-card/10 p-2 text-[10px] font-mono text-text-tertiary uppercase tracking-wider">
+                        <span>Asset</span>
+                        <span className="text-right">Value</span>
+                        <span className="text-right">Alloc</span>
+                    </div>
+                    {assets.map((asset, i) => {
+                        const total = assets.reduce((a, b) => a + b.amount, 0) || 1;
+                        const pct = Math.round((asset.amount / total) * 100);
+                        return (
+                            <button
+                                key={asset.id}
+                                onClick={() => onSelectAsset(asset)}
+                                className="grid grid-cols-3 p-2 hover:bg-bg-hover/50 transition-colors text-xs font-mono border-none text-text-secondary hover:text-text-primary text-left group"
+                            >
+                                <div className="flex items-center gap-2 overflow-hidden">
+                                    <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: data[i].color }} />
+                                    <span className="truncate group-hover:text-accent transition-colors">{asset.label}</span>
+                                </div>
+                                <span className="text-right">${asset.amount.toLocaleString()}</span>
+                                <span className="text-right text-text-tertiary">{pct}%</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
         </motion.div>
     );
 }

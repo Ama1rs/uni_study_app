@@ -44,7 +44,7 @@ export function AddEntryModal({ onClose, onAdd }: AddEntryModalProps) {
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.9, opacity: 0, y: 20 }}
             >
-                <div className="absolute top-0 right-0 w-32 h-32 bg-accent/5 blur-3xl -mr-16 -mt-16" />
+
 
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-bold text-text-primary">Add Entry</h2>

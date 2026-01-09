@@ -32,6 +32,7 @@ pub struct GradingScaleConfig {
 pub struct GradingScale {
     pub id: i64,
     pub name: String,
+    #[serde(rename = "type")]
     pub type_: String,
     pub config: GradingScaleConfig,
     pub is_default: bool,
@@ -123,12 +124,15 @@ pub fn update_course_grade_details(
     semester_id: Option<i64>,
     manual_grade: Option<f64>,
     status: String,
+    component_config: Option<String>,
+    component_scores: Option<String>,
+    grading_scale_id: Option<i64>,
 ) -> Result<(), String> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
     conn.execute(
-        "UPDATE repositories SET credits = ?1, semester_id = ?2, manual_grade = ?3, status = ?4 WHERE id = ?5",
-        (credits, semester_id, manual_grade, status, repository_id),
+        "UPDATE repositories SET credits = ?1, semester_id = ?2, manual_grade = ?3, status = ?4, component_config = ?5, component_scores = ?6, grading_scale_id = ?7 WHERE id = ?8",
+        (credits, semester_id, manual_grade, status, component_config, component_scores, grading_scale_id, repository_id),
     )
     .map_err(|e| e.to_string())?;
     Ok(())
@@ -323,12 +327,36 @@ pub fn get_grading_scales(state: State<DbState>) -> Result<Vec<GradingScale>, St
                     config: GradingScaleConfig {
                         max_point: 10.0,
                         mappings: vec![
-                            GradingScaleMapping { min_percent: Some(90), letter: None, point: 10.0 },
-                            GradingScaleMapping { min_percent: Some(80), letter: None, point: 9.0 },
-                            GradingScaleMapping { min_percent: Some(70), letter: None, point: 8.0 },
-                            GradingScaleMapping { min_percent: Some(60), letter: None, point: 7.0 },
-                            GradingScaleMapping { min_percent: Some(50), letter: None, point: 6.0 },
-                            GradingScaleMapping { min_percent: Some(40), letter: None, point: 5.0 },
+                            GradingScaleMapping {
+                                min_percent: Some(90),
+                                letter: None,
+                                point: 10.0,
+                            },
+                            GradingScaleMapping {
+                                min_percent: Some(80),
+                                letter: None,
+                                point: 9.0,
+                            },
+                            GradingScaleMapping {
+                                min_percent: Some(70),
+                                letter: None,
+                                point: 8.0,
+                            },
+                            GradingScaleMapping {
+                                min_percent: Some(60),
+                                letter: None,
+                                point: 7.0,
+                            },
+                            GradingScaleMapping {
+                                min_percent: Some(50),
+                                letter: None,
+                                point: 6.0,
+                            },
+                            GradingScaleMapping {
+                                min_percent: Some(40),
+                                letter: None,
+                                point: 5.0,
+                            },
                         ],
                     },
                     is_default: true,
@@ -340,14 +368,46 @@ pub fn get_grading_scales(state: State<DbState>) -> Result<Vec<GradingScale>, St
                     config: GradingScaleConfig {
                         max_point: 4.0,
                         mappings: vec![
-                            GradingScaleMapping { min_percent: None, letter: Some("A".to_string()), point: 4.0 },
-                            GradingScaleMapping { min_percent: None, letter: Some("A-".to_string()), point: 3.7 },
-                            GradingScaleMapping { min_percent: None, letter: Some("B+".to_string()), point: 3.3 },
-                            GradingScaleMapping { min_percent: None, letter: Some("B".to_string()), point: 3.0 },
-                            GradingScaleMapping { min_percent: None, letter: Some("B-".to_string()), point: 2.7 },
-                            GradingScaleMapping { min_percent: None, letter: Some("C+".to_string()), point: 2.3 },
-                            GradingScaleMapping { min_percent: None, letter: Some("C".to_string()), point: 2.0 },
-                            GradingScaleMapping { min_percent: None, letter: Some("F".to_string()), point: 0.0 },
+                            GradingScaleMapping {
+                                min_percent: None,
+                                letter: Some("A".to_string()),
+                                point: 4.0,
+                            },
+                            GradingScaleMapping {
+                                min_percent: None,
+                                letter: Some("A-".to_string()),
+                                point: 3.7,
+                            },
+                            GradingScaleMapping {
+                                min_percent: None,
+                                letter: Some("B+".to_string()),
+                                point: 3.3,
+                            },
+                            GradingScaleMapping {
+                                min_percent: None,
+                                letter: Some("B".to_string()),
+                                point: 3.0,
+                            },
+                            GradingScaleMapping {
+                                min_percent: None,
+                                letter: Some("B-".to_string()),
+                                point: 2.7,
+                            },
+                            GradingScaleMapping {
+                                min_percent: None,
+                                letter: Some("C+".to_string()),
+                                point: 2.3,
+                            },
+                            GradingScaleMapping {
+                                min_percent: None,
+                                letter: Some("C".to_string()),
+                                point: 2.0,
+                            },
+                            GradingScaleMapping {
+                                min_percent: None,
+                                letter: Some("F".to_string()),
+                                point: 0.0,
+                            },
                         ],
                     },
                     is_default: false,
@@ -574,6 +634,29 @@ pub fn create_program(
     .map_err(|e| e.to_string())?;
 
     Ok(conn.last_insert_rowid())
+}
+
+/// Deletes a program and unassigns any users who were using it
+#[tauri::command]
+pub fn delete_program(state: State<DbState>, id: i64) -> Result<(), String> {
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
+
+    // Optional: Check if it's the default program? Maybe not needed.
+    // Check if user is using it. If so, setting their program_id to NULL is handled by SQLite if foreign key cascading is on?
+    // If not, we should manually null it out or we might get FK error.
+    // Let's assume we want to just delete it.
+
+    // First, check if specific user is using it (just to be safe)
+    conn.execute(
+        "UPDATE user_profiles SET program_id = NULL WHERE program_id = ?1",
+        [id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    conn.execute("DELETE FROM programs WHERE id = ?1", [id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 // ============================================================================

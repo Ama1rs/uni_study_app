@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronLeft } from 'lucide-react';
 import { TitleBar } from "@/components/layout/TitleBar";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { ContextDock } from "@/components/global/ContextDock";
 import { SettingsModal } from "@/features/settings/SettingsModal";
 import { Onboarding } from "@/features/onboarding/Onboarding";
 import { AuthScreen } from "@/features/auth/AuthScreen";
@@ -18,7 +18,6 @@ import { invoke } from "@tauri-apps/api/core";
 function AppContent() {
   const [activeView, setActiveView] = useState<string>("main");
   const [activeResource, setActiveResource] = useState<Resource | null>(null);
-  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(true);
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
   const [isSwitchingProfile, setIsSwitchingProfile] = useState<boolean>(false);
 
@@ -84,7 +83,13 @@ function AppContent() {
         onLogout={() => logout(setActiveView)}
         onOpenSettings={() => setSettingsOpen(true)}
       />
-      <div className="flex flex-1 overflow-hidden relative">
+
+      {/* Skip to Content Link for Accessibility */}
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
+
+      <div className="flex flex-1 overflow-hidden relative" id="main-content">
         <Sidebar
           activeView={activeView}
           onViewChange={(view: string) => {
@@ -99,26 +104,9 @@ function AppContent() {
           setActiveView={setActiveView}
           activeResource={activeResource}
           setActiveResource={setActiveResource}
-          isRightSidebarOpen={isRightSidebarOpen}
-          setIsRightSidebarOpen={setIsRightSidebarOpen}
         />
 
-        {/* Floating edge button to toggle right panel */}
-        {activeView === "main" && (
-          <motion.button
-            onClick={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
-            className="fixed right-0 top-1/2 -translate-y-1/2 z-[60] bg-bg-surface/80 backdrop-blur-md border border-border border-r-0 rounded-l-xl p-1.5 hover:bg-white/10 transition-all group flex items-center justify-center shadow-2xl"
-            title={isRightSidebarOpen ? "Close Today View" : "Open Today View"}
-            initial={false}
-            animate={{ x: 0, opacity: 1 }}
-            whileHover={{ scale: 1.1, x: -2 }}
-            whileTap={{ scale: 0.9 }}
-          >
-            <motion.div animate={{ rotate: isRightSidebarOpen ? 180 : 0 }} transition={{ duration: 0.3 }}>
-              <ChevronLeft size={20} className="text-text-secondary group-hover:text-accent transition-colors" />
-            </motion.div>
-          </motion.button>
-        )}
+
       </div>
 
       <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
@@ -138,6 +126,8 @@ function AppContent() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ContextDock />
     </div>
   );
 }

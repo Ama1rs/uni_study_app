@@ -7,6 +7,14 @@ interface AppSettings {
     theme_mode: string;
     accent: string;
     sidebar_hidden: boolean;
+    graph_node_color: string;
+    graph_link_color: string;
+    graph_node_size: number;
+    graph_link_width: number;
+    graph_show_labels: boolean;
+    graph_label_size: number;
+    graph_show_legend: boolean;
+    graph_show_topology: boolean;
 }
 
 interface AppSettingsContextType {
@@ -23,6 +31,14 @@ const defaultSettings: AppSettings = {
     theme_mode: 'dark',
     accent: 'blue',
     sidebar_hidden: true,
+    graph_node_color: '#2383E2',
+    graph_link_color: 'rgba(255,255,255,0.15)',
+    graph_node_size: 3.0,
+    graph_link_width: 0.5,
+    graph_show_labels: true,
+    graph_label_size: 12.0,
+    graph_show_legend: true,
+    graph_show_topology: true,
 };
 
 const AppSettingsContext = createContext<AppSettingsContextType | undefined>(undefined);

@@ -136,13 +136,13 @@ export function HomeHub({ onOpenFile }: { onOpenFile: (res: Resource) => void })
             </motion.svg>
 
             {/* 2. The HUD (Foreground) */}
-            <div className="relative z-10 w-full h-full p-8 flex flex-col">
+            <div className="relative z-10 w-full h-full flex flex-col p-10">
 
                 {/* Top-Left: Pilot's Console */}
                 <motion.div
-                    className="pointer-events-auto w-full max-w-2xl mb-12"
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
+                    className="pointer-events-auto w-full max-w-2xl mb-8"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
                     transition={{ duration: 0.6, ease: "easeOut" }}
                 >
                     <h1 className="text-3xl font-bold text-text-primary mb-1">
@@ -160,7 +160,7 @@ export function HomeHub({ onOpenFile }: { onOpenFile: (res: Resource) => void })
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
                 >
-                    <div className="flex items-center bg-bg-surface/80 backdrop-blur-md border border-border rounded-lg px-4 py-2 shadow-lg">
+                    <div className="flex items-center bg-bg-surface border border-border rounded-sm px-4 py-2 hover:border-text-tertiary transition-colors">
                         <Search className="text-text-tertiary mr-3" size={16} />
                         <input
                             type="text"
@@ -169,22 +169,22 @@ export function HomeHub({ onOpenFile }: { onOpenFile: (res: Resource) => void })
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
-                        <span className="text-xs text-text-tertiary font-mono border border-border px-1.5 py-0.5 rounded">⌘K</span>
+                        <span className="text-xs text-text-tertiary font-mono border border-border px-1.5 py-0.5 rounded-sm">⌘K</span>
                     </div>
 
                     {/* Search Results Dropdown */}
                     {searchQuery.trim() && (
                         <motion.div
-                            className="absolute top-full left-0 right-0 mt-2 bg-bg-surface border border-border rounded-lg shadow-xl overflow-hidden"
+                            className="absolute top-full left-0 right-0 mt-2 bg-bg-surface border border-border rounded-lg overflow-hidden shadow-none"
                             initial={{ opacity: 0, y: -10 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -10 }}
                             transition={{ duration: 0.2 }}
                         >
                             {searchResults.length > 0 ? (
-                                searchResults.map(res => (
+                                searchResults.map((res, idx) => (
                                     <motion.button
-                                        key={res.id}
+                                        key={`search-${res.id}-${idx}`}
                                         onClick={() => handleFileClick(res)}
                                         className="w-full text-left px-4 py-3 hover:bg-white/5 flex items-center gap-3 transition-colors border-b border-white/5 last:border-0"
                                         whileHover={{ x: 4 }}
@@ -207,18 +207,18 @@ export function HomeHub({ onOpenFile }: { onOpenFile: (res: Resource) => void })
                 {/* Bottom Section: Split View */}
                 <div className="flex-1 flex gap-6 min-h-0">
                     <AnimatePresence mode="popLayout">
-
                         {/* Bottom-Left: Recent Dock */}
                         <motion.div
+                            key="recent-dock"
                             className="pointer-events-auto w-80 flex flex-col gap-4"
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
                             transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
                             layout
                         >
-                            <div className="glass-card p-4 rounded-lg flex-1 flex flex-col min-h-0">
+                            <div className="flex-1 flex flex-col min-h-0 pt-4">
                                 <h3 className="text-xs font-medium text-text-tertiary mb-3 uppercase tracking-wider font-mono">Recent</h3>
-                                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1">
+                                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-0">
                                     {recentFiles.length === 0 ? (
                                         <p className="text-xs text-text-tertiary text-center mt-4">No recent files</p>
                                     ) : (
@@ -236,22 +236,20 @@ export function HomeHub({ onOpenFile }: { onOpenFile: (res: Resource) => void })
                                                 }
                                             }}
                                         >
-                                            {recentFiles.map(file => (
+                                            {recentFiles.map((file, idx) => (
                                                 <motion.button
-                                                    key={file.id}
+                                                    key={`recent-${file.id}-${idx}`}
                                                     onClick={() => handleFileClick(file)}
-                                                    className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-bg-hover transition-colors group text-left"
+                                                    className="w-full flex items-center gap-3 py-2 px-2 -mx-2 rounded-sm hover:bg-bg-hover transition-colors group text-left border-b border-border/50 last:border-0"
                                                     variants={{
                                                         hidden: { opacity: 0, x: -10 },
                                                         visible: { opacity: 1, x: 0 }
                                                     }}
-                                                    whileHover={{ x: 4, backgroundColor: "rgba(255,255,255,0.05)" }}
                                                 >
                                                     <FileText size={14} className="text-text-tertiary group-hover:text-accent" />
                                                     <div className="flex-1 min-w-0">
                                                         <p className="text-sm text-text-secondary group-hover:text-text-primary truncate font-mono">{file.title}</p>
                                                     </div>
-                                                    {/* <span className="text-xs text-text-tertiary">{file.created_at}</span> */}
                                                 </motion.button>
                                             ))
                                             }
@@ -259,7 +257,7 @@ export function HomeHub({ onOpenFile }: { onOpenFile: (res: Resource) => void })
                                     )}
                                 </div>
 
-                                <div className="mt-3 pt-3 border-t border-border grid grid-cols-2 gap-2">
+                                <div className="mt-4 pt-4 border-t border-border grid grid-cols-2 gap-2">
                                     <ActionButton icon={Plus} label="New Note" />
                                     <ActionButton icon={BookOpen} label="New Repo" />
                                 </div>
@@ -268,23 +266,23 @@ export function HomeHub({ onOpenFile }: { onOpenFile: (res: Resource) => void })
 
                         {/* Right-Side: Daily Scratchpad */}
                         <motion.div
+                            key="scratchpad"
                             className="pointer-events-auto flex-1"
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
                             transition={{
                                 layout: { duration: 0.4, ease: "easeInOut" },
-                                opacity: { duration: 0.6, delay: 0.3, ease: "easeOut" },
-                                x: { duration: 0.6, delay: 0.3, ease: "easeOut" }
+                                opacity: { duration: 0.6, delay: 0.3, ease: "easeOut" }
                             }}
                             layout
                         >
-                            <div className="glass-card p-4 rounded-lg h-full flex flex-col">
+                            <div className="h-full flex flex-col pt-4 border-l border-border pl-6">
                                 <div className="flex items-center justify-between mb-3">
                                     <h3 className="text-xs font-medium text-text-tertiary uppercase tracking-wider font-mono">Scratchpad</h3>
-                                    <span className="text-xs text-text-tertiary font-mono">auto-saved</span>
+                                    <span className="text-xs text-text-tertiary font-mono opacity-50">auto-saved</span>
                                 </div>
                                 <textarea
-                                    className="flex-1 bg-transparent border-none outline-none resize-none font-mono text-sm text-text-secondary placeholder-text-tertiary leading-relaxed custom-scrollbar"
+                                    className="flex-1 bg-transparent border-none outline-none resize-none font-mono text-sm text-text-secondary placeholder-text-tertiary leading-relaxed custom-scrollbar p-0"
                                     placeholder="Quick thoughts, ideas, todo's..."
                                     value={scratchpad}
                                     onChange={(e) => setScratchpad(e.target.value)}

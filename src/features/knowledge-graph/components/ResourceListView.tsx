@@ -102,7 +102,7 @@ export function ResourceListView({
                         {/* Header Row */}
                         <div
                             className="grid grid-cols-12 gap-4 px-4 py-3 text-xs font-semibold uppercase tracking-wide rounded-lg"
-                            style={{ 
+                            style={{
                                 backgroundColor: 'var(--bg-hover)',
                                 color: 'var(--text-tertiary)'
                             }}
@@ -114,16 +114,17 @@ export function ResourceListView({
                         </div>
 
                         {/* Resource Rows */}
-                        {resources.map((res) => (
+                        {resources.map((res, idx) => (
                             <motion.div
-                                key={res.id}
+                                key={res.id || `res-${idx}`}
                                 variants={itemVariants}
+                                initial="hidden"
+                                animate="visible"
                                 className="group"
                             >
                                 <div
-                                    className="grid grid-cols-12 gap-4 px-4 py-3 rounded-lg border transition-all duration-200 cursor-pointer hover:border-accent/30"
+                                    className="grid grid-cols-12 gap-4 px-4 py-3 rounded-lg transition-all duration-200 cursor-pointer hover:bg-bg-hover mb-1"
                                     style={{
-                                        borderColor: 'var(--border)',
                                         backgroundColor: expandedId === res.id ? 'var(--bg-hover)' : 'transparent'
                                     }}
                                     onClick={() => setExpandedId(expandedId === res.id ? null : res.id)}
@@ -144,7 +145,7 @@ export function ResourceListView({
                                                 e.stopPropagation();
                                                 onOpenResource(res);
                                             }}
-                                            className="text-left min-w-0 flex-1 font-medium hover:text-accent transition-colors truncate"
+                                            className="text-left min-w-0 flex-1 font-medium hover:text-accent transition-colors line-clamp-2 break-words"
                                             style={{ color: 'var(--text-primary)' }}
                                             title={res.title}
                                         >
@@ -168,16 +169,16 @@ export function ResourceListView({
                                     {/* Tags */}
                                     <div className="col-span-3 flex items-center flex-wrap gap-1 min-w-0">
                                         {res.tags ? (
-                                            res.tags.split(',').map((tag) => (
+                                            res.tags.split(',').map(tag => tag.trim()).filter(tag => tag).map((tag, idx) => (
                                                 <span
-                                                    key={tag.trim()}
+                                                    key={`${tag}-${idx}`}
                                                     className="inline-block px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap"
                                                     style={{
                                                         backgroundColor: 'var(--accent)',
                                                         color: 'black'
                                                     }}
                                                 >
-                                                    #{tag.trim()}
+                                                    #{tag}
                                                 </span>
                                             ))
                                         ) : (
@@ -219,6 +220,6 @@ export function ResourceListView({
                     </div>
                 )}
             </motion.div>
-        </motion.div>
+        </motion.div >
     );
 }

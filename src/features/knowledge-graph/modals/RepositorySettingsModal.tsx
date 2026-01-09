@@ -74,21 +74,19 @@ export function RepositorySettingsModal({
                 <div className="flex gap-2 mb-6 border-b" style={{ borderColor: 'var(--border)' }}>
                     <button
                         onClick={() => setActiveTab('display')}
-                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                            activeTab === 'display'
+                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'display'
                                 ? 'border-accent text-accent'
                                 : 'border-transparent text-text-secondary hover:text-text-primary'
-                        }`}
+                            }`}
                     >
                         Display Settings
                     </button>
                     <button
                         onClick={() => setActiveTab('tags')}
-                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                            activeTab === 'tags'
+                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'tags'
                                 ? 'border-accent text-accent'
                                 : 'border-transparent text-text-secondary hover:text-text-primary'
-                        }`}
+                            }`}
                     >
                         Manage Tags
                     </button>
@@ -110,21 +108,19 @@ export function RepositorySettingsModal({
                                 <div className="flex gap-3">
                                     <button
                                         onClick={() => setLocalListViewType('grid')}
-                                        className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
-                                            localListViewType === 'grid'
+                                        className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all border ${localListViewType === 'grid'
                                                 ? 'border-accent bg-accent/10 text-accent'
                                                 : 'border-border text-text-secondary hover:text-text-primary'
-                                        }`}
+                                            }`}
                                     >
                                         Grid View
                                     </button>
                                     <button
                                         onClick={() => setLocalListViewType('list')}
-                                        className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
-                                            localListViewType === 'list'
+                                        className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all border ${localListViewType === 'list'
                                                 ? 'border-accent bg-accent/10 text-accent'
                                                 : 'border-border text-text-secondary hover:text-text-primary'
-                                        }`}
+                                            }`}
                                     >
                                         Compact List
                                     </button>
@@ -194,9 +190,9 @@ export function RepositorySettingsModal({
                                         {allTags.length === 0 ? 'No tags yet' : 'No matching tags'}
                                     </p>
                                 ) : (
-                                    filteredTags.map((tag) => (
+                                    filteredTags.filter(t => t && t.trim()).map((tag, idx) => (
                                         <div
-                                            key={tag}
+                                            key={`${tag}-${idx}`}
                                             className="flex items-center justify-between p-2.5 rounded-lg transition-colors"
                                             style={{ backgroundColor: 'var(--bg-hover)' }}
                                         >

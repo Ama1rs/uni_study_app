@@ -13,6 +13,7 @@ export type AccentColor = PresetAccentColor | string;
 export const DARK_THEME = {
     bgPrimary: '#191919',
     bgSurface: '#252525',
+    bgCard: '#2E2E2E',
     bgHover: '#2D2D2D',
     border: '#373737',
     borderLight: '#404040',
@@ -24,20 +25,22 @@ export const DARK_THEME = {
 
 export const LIGHT_THEME = {
     bgPrimary: '#FFFFFF',
-    bgSurface: '#F7F6F3',
-    bgHover: '#EFEEEB',
-    border: '#E3E2E0',
-    borderLight: '#D3D2CF',
-    textPrimary: '#37352F',
-    textSecondary: '#787774',
-    textTertiary: '#9B9A97',
-    glassBg: 'rgba(255, 255, 255, 0.6)',
+    bgSurface: '#FFFFFF', // Consistent with titlebar
+    bgCard: '#F8F9FA',    // Very subtle card background
+    bgHover: '#F3F4F6',
+    border: '#E5E7EB',    // Tailwind gray-200
+    borderLight: '#F3F4F6',
+    textPrimary: '#111827', // Gray-900 for target pure aesthetics
+    textSecondary: '#4B5563',
+    textTertiary: '#9CA3AF',
+    glassBg: 'rgba(255, 255, 255, 0.85)',
 } as const;
 
 export const WARM_DARK_THEME = {
     bgPrimary: '#202020',
-    bgSurface: '#2C2C2C',
-    bgHover: '#383838',
+    bgSurface: '#262626',
+    bgCard: '#2E2E2E',
+    bgHover: '#323232',
     border: '#404040',
     borderLight: '#4D4D4D',
     textPrimary: '#EAEAEA',
@@ -48,14 +51,15 @@ export const WARM_DARK_THEME = {
 
 export const WARM_LIGHT_THEME = {
     bgPrimary: '#FFFEFC',
-    bgSurface: '#FBF9F5',
-    bgHover: '#F2F0EB',
-    border: '#E8E6E1',
-    borderLight: '#DCDAD5',
-    textPrimary: '#403D39',
-    textSecondary: '#807D79',
-    textTertiary: '#A09D99',
-    glassBg: 'rgba(251, 249, 245, 0.6)',
+    bgSurface: '#FFFEFC', // Match primary for seamless feel
+    bgCard: '#F9F8F4',
+    bgHover: '#F5F2EA',
+    border: '#E8E6E1',    // Subtle warm border
+    borderLight: '#F2F0ED',
+    textPrimary: '#2D2A26', // Deep warm charcoal
+    textSecondary: '#78716C',
+    textTertiary: '#A8A29E',
+    glassBg: 'rgba(253, 251, 247, 0.85)',
 } as const;
 
 export function getAccentColor(accent: AccentColor, mode: 'light' | 'dark'): string {

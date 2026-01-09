@@ -66,6 +66,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         // Apply color variables
         root.style.setProperty('--bg-primary', customBg || themeObj.bgPrimary);
         root.style.setProperty('--bg-surface', customSurface || themeObj.bgSurface);
+        root.style.setProperty('--bg-card', themeObj.bgCard);
         root.style.setProperty('--bg-hover', themeObj.bgHover);
 
         // Apply contrast adjustments

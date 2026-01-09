@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Trash2 } from 'lucide-react';
 import { financeService, FinanceBudget } from '@/lib/financeService';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface BudgetModalProps {
     budget: FinanceBudget | null;
@@ -13,6 +14,13 @@ export function BudgetModal({ budget, onClose, onUpdate }: BudgetModalProps) {
     const [category, setCategory] = useState(budget?.category || 'Housing');
     const [limit, setLimit] = useState(budget?.limit_amount.toString() || '');
     const [spent, setSpent] = useState(budget?.spent_amount.toString() || '0');
+
+    const [confirmState, setConfirmState] = useState<{
+        isOpen: boolean;
+        title: string;
+        description: string;
+        action: () => void;
+    }>({ isOpen: false, title: '', description: '', action: () => { } });
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -38,15 +46,21 @@ export function BudgetModal({ budget, onClose, onUpdate }: BudgetModalProps) {
 
     const handleDelete = async () => {
         if (!budget?.id) return;
-        if (confirm('Are you sure you want to delete this budget?')) {
-            try {
-                await financeService.deleteBudget(budget.id);
-                onUpdate();
-                onClose();
-            } catch (error) {
-                console.error('Failed to delete budget:', error);
+        setConfirmState({
+            isOpen: true,
+            title: 'Delete Budget',
+            description: 'Are you sure you want to delete this budget?',
+            action: async () => {
+                try {
+                    await financeService.deleteBudget(budget.id!);
+                    onUpdate();
+                    onClose();
+                    setConfirmState(prev => ({ ...prev, isOpen: false }));
+                } catch (error) {
+                    console.error('Failed to delete budget:', error);
+                }
             }
-        }
+        });
     };
 
     return (
@@ -130,6 +144,15 @@ export function BudgetModal({ budget, onClose, onUpdate }: BudgetModalProps) {
                     </div>
                 </form>
             </motion.div>
+            <ConfirmDialog
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                description={confirmState.description}
+                onConfirm={confirmState.action}
+                onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+                danger
+                confirmText="Delete"
+            />
         </motion.div>
     );
 }

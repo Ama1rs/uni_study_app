@@ -1,13 +1,15 @@
+mod book_commands;
 mod conversion;
 mod db;
 mod db_manager;
-mod image_tools;
 mod finance;
 mod grades;
+mod image_tools;
 mod inference;
 mod ollama;
 mod pdf_tools;
 mod projection;
+mod youtube;
 
 use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
@@ -61,6 +63,14 @@ pub struct AppSettings {
     pub theme_mode: String,
     pub accent: String,
     pub sidebar_hidden: bool,
+    pub graph_node_color: String,
+    pub graph_link_color: String,
+    pub graph_node_size: f64,
+    pub graph_link_width: f64,
+    pub graph_show_labels: bool,
+    pub graph_label_size: f64,
+    pub graph_show_legend: bool,
+    pub graph_show_topology: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -93,6 +103,9 @@ pub struct Lecture {
     pub title: String,
     pub url: String,
     pub thumbnail: Option<String>,
+    pub group_name: Option<String>,
+    pub is_completed: bool,
+    pub order_index: Option<i32>,
 }
 
 // Re-export Link from db
@@ -625,6 +638,11 @@ fn import_resource(
         "pdf" => "pdf",
         "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" | "svg" => "image",
         "doc" | "docx" | "ppt" | "pptx" | "txt" | "md" | "rtf" => "document",
+        // Book formats
+        "epub" => "epub",
+        "azw3" => "azw3",
+        "fb2" => "fb2",
+        "ibooks" => "ibooks",
         _ => "file",
     };
 
@@ -775,7 +793,9 @@ fn get_app_settings(state: State<DbState>) -> Result<AppSettings, String> {
     }
 
     conn.query_row(
-        "SELECT id, theme_style, theme_mode, accent, sidebar_hidden FROM app_settings LIMIT 1",
+        "SELECT id, theme_style, theme_mode, accent, sidebar_hidden, 
+                graph_node_color, graph_link_color, graph_node_size, graph_link_width, 
+                graph_show_labels, graph_label_size FROM app_settings LIMIT 1",
         [],
         |row| {
             Ok(AppSettings {
@@ -783,7 +803,17 @@ fn get_app_settings(state: State<DbState>) -> Result<AppSettings, String> {
                 theme_style: row.get(1)?,
                 theme_mode: row.get(2)?,
                 accent: row.get(3)?,
-                sidebar_hidden: row.get(4)?,
+                sidebar_hidden: row.get(4).unwrap_or(0) == 1,
+                graph_node_color: row.get(5).unwrap_or_else(|_| "#2383E2".to_string()),
+                graph_link_color: row
+                    .get(6)
+                    .unwrap_or_else(|_| "rgba(255,255,255,0.15)".to_string()),
+                graph_node_size: row.get(7).unwrap_or(3.0),
+                graph_link_width: row.get(8).unwrap_or(0.5),
+                graph_show_labels: row.get(9).unwrap_or(1) == 1,
+                graph_label_size: row.get(10).unwrap_or(12.0),
+                graph_show_legend: row.get(11).unwrap_or(1) == 1,
+                graph_show_topology: row.get(12).unwrap_or(1) == 1,
             })
         },
     )
@@ -797,9 +827,27 @@ fn set_app_settings(state: State<DbState>, settings: AppSettings) -> Result<(), 
     conn.execute("DELETE FROM app_settings", [])
         .map_err(|e| e.to_string())?;
     let sidebar_hidden_int = if settings.sidebar_hidden { 1 } else { 0 };
+    let graph_show_labels_int = if settings.graph_show_labels { 1 } else { 0 };
     conn.execute(
-        "INSERT INTO app_settings (id, theme_style, theme_mode, accent, sidebar_hidden) VALUES (1, ?1, ?2, ?3, ?4)",
-        (&settings.theme_style, &settings.theme_mode, &settings.accent, &sidebar_hidden_int),
+        "INSERT INTO app_settings (id, theme_style, theme_mode, accent, sidebar_hidden, 
+                                   graph_node_color, graph_link_color, graph_node_size, 
+                                   graph_link_width, graph_show_labels, graph_label_size,
+                graph_show_legend, graph_show_topology) 
+         VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+        (
+            &settings.theme_style,
+            &settings.theme_mode,
+            &settings.accent,
+            &sidebar_hidden_int,
+            &settings.graph_node_color,
+            &settings.graph_link_color,
+            &settings.graph_node_size,
+            &settings.graph_link_width,
+            &graph_show_labels_int,
+            &settings.graph_label_size,
+            &(if settings.graph_show_legend { 1 } else { 0 }),
+            &(if settings.graph_show_topology { 1 } else { 0 }),
+        ),
     )
     .map_err(|e| e.to_string())?;
     Ok(())
@@ -839,14 +887,20 @@ fn create_lecture(
     title: String,
     url: String,
     thumbnail: Option<String>,
+    group_name: Option<String>,
+    order_index: Option<i32>,
 ) -> Result<i64, String> {
-    println!(
-        "Backend: create_lecture called. Repo: {}, Title: {}",
-        repository_id, title
-    );
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::create_lecture(&conn, repository_id, title, url, thumbnail)
+    db::create_lecture(
+        &conn,
+        repository_id,
+        title,
+        url,
+        thumbnail,
+        group_name,
+        order_index,
+    )
 }
 
 #[tauri::command]
@@ -1131,6 +1185,50 @@ fn get_courses(state: State<DbState>) -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
+async fn import_youtube_playlist(
+    state: State<'_, DbState>,
+    repository_id: i64,
+    url: String,
+    folder_name: Option<String>,
+) -> Result<(), String> {
+    let playlist_data = youtube::fetch_playlist_data(&url)
+        .await
+        .map_err(|e| format!("Failed to fetch playlist: {}", e))?;
+
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
+
+    let group = folder_name.unwrap_or(playlist_data.title);
+
+    // Add Lectures to the existing repository
+    for (idx, video) in playlist_data.videos.into_iter().enumerate() {
+        db::create_lecture(
+            &conn,
+            repository_id,
+            video.title,
+            video.url,
+            Some(video.thumbnail),
+            Some(group.clone()),
+            Some(idx as i32),
+        )?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+fn update_lecture_progress(state: State<DbState>, id: i64, completed: bool) -> Result<(), String> {
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
+    conn.execute(
+        "UPDATE lectures SET is_completed = ?1 WHERE id = ?2",
+        (if completed { 1 } else { 0 }, id),
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 fn create_course(
     state: State<DbState>,
     name: String,
@@ -1311,7 +1409,8 @@ async fn generate_document(
         request.section_structure
     );
 
-    let reference_text = request.reference_material
+    let reference_text = request
+        .reference_material
         .filter(|s| !s.is_empty())
         .map(|s| format!("\n\nReference material:\n{}", s))
         .unwrap_or_default();
@@ -1323,11 +1422,7 @@ async fn generate_document(
         Description: {}\n\
         {}\n\
         Please generate the complete document.<|im_end|>\n<|im_start|>assistant\n",
-        system_prompt,
-        request.title,
-        request.topic,
-        request.description,
-        reference_text
+        system_prompt, request.title, request.topic, request.description, reference_text
     );
 
     let max_tokens = match request.length.as_str() {
@@ -1391,7 +1486,8 @@ async fn generate_presentation(
         speaker_notes_instruction
     );
 
-    let reference_text = request.reference_material
+    let reference_text = request
+        .reference_material
         .filter(|s| !s.is_empty())
         .map(|s| format!("\n\nReference material:\n{}", s))
         .unwrap_or_default();
@@ -1412,7 +1508,11 @@ async fn generate_presentation(
         request.description,
         request.slide_count,
         reference_text,
-        if request.include_speaker_notes { "Include speaker notes for each slide.\n" } else { "" }
+        if request.include_speaker_notes {
+            "Include speaker notes for each slide.\n"
+        } else {
+            ""
+        }
     );
 
     let max_tokens = 4096; // Presentations need more tokens
@@ -1516,6 +1616,8 @@ pub fn run() {
             // Grading Scales Management
             grades::get_grading_scales,
             grades::get_grading_scale,
+            import_youtube_playlist,
+            update_lecture_progress,
             grades::create_grading_scale,
             // Programs Management
             grades::get_programs,
@@ -1523,6 +1625,7 @@ pub fn run() {
             grades::create_program,
             grades::set_user_program,
             grades::get_user_program,
+            grades::delete_program,
             // Projection Settings
             grades::save_projection_settings,
             grades::get_projection_settings,
@@ -1536,6 +1639,7 @@ pub fn run() {
             grades::get_semester_targets,
             grades::get_course_targets,
             projection::estimate_study_hours,
+            projection::add_study_tasks_to_planner,
             // Flashcards
             create_flashcard,
             get_flashcards,
@@ -1562,6 +1666,15 @@ pub fn run() {
             create_finance_budget,
             delete_finance_budget,
             get_expense_flows,
+            // Book Progress & Bookmarks
+            book_commands::save_book_progress,
+            book_commands::get_book_progress,
+            book_commands::create_bookmark,
+            book_commands::get_bookmarks,
+            book_commands::delete_bookmark,
+            book_commands::create_highlight,
+            book_commands::get_highlights,
+            book_commands::delete_highlight,
             // Study Commands
             start_study_session,
             stop_study_session,

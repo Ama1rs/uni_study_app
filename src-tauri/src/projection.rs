@@ -103,13 +103,22 @@ pub fn project_future_requirements(
         4.0
     };
 
-    // Calculate future GPA requirement
-    // Formula: (target_total_gp - current_gp) / credits_remaining = required_future_gpa
-    let current_gp = current_cgpa * credits_completed;
-    let target_gp_total = target_cgpa * total_required_credits;
-    let gp_needed_future = target_gp_total - current_gp;
-    let required_future_gpa = if credits_remaining > 0.0 {
-        gp_needed_future / credits_remaining
+    // If horizon is provided, use it to calculate required_future_gpa more specifically
+    // if it's different from the credit-based estimate
+    let horizon_credits = if let Some(h) = horizon {
+        (h as f64 * 20.0).min(credits_remaining) // Assume 20 credits per semester if not specified
+    } else {
+        credits_remaining
+    };
+
+    let required_future_gpa = if horizon_credits > 0.0 {
+        // If we only have 'h' semesters to reach target_cgpa in TOTAL (cumulative)
+        // Total points needed = target_cgpa * (credits_completed + horizon_credits)
+        let total_credits_at_horizon = credits_completed + horizon_credits;
+        let points_needed_at_horizon = target_cgpa * total_credits_at_horizon;
+        let current_gp = current_cgpa * credits_completed;
+        let gp_needed_in_horizon = points_needed_at_horizon - current_gp;
+        gp_needed_in_horizon / horizon_credits
     } else {
         0.0
     };
@@ -122,39 +131,43 @@ pub fn project_future_requirements(
     };
 
     // Determine feasibility level
-    let feasibility_level;
-    let feasible;
-    let message;
-
-    if required_future_gpa > max_scale_point {
-        feasibility_level = "INFEASIBLE".to_string();
-        feasible = false;
-        message = format!(
-            "INFEASIBLE: Requires GPA {:.2} (max possible: {:.2})",
-            required_future_gpa, max_scale_point
-        );
-    } else if required_future_gpa > max_scale_point * 0.8 {
-        feasibility_level = "CHALLENGING".to_string();
-        feasible = false;
-        message = format!(
-            "CHALLENGING: Requires GPA {:.2}/{:.2}. High but potentially achievable.",
-            required_future_gpa, max_scale_point
-        );
-    } else if required_future_gpa > max_scale_point * 0.5 {
-        feasibility_level = "FEASIBLE".to_string();
-        feasible = true;
-        message = format!(
-            "FEASIBLE: Requires GPA {:.2}/{:.2}. Achievable with consistent effort.",
-            required_future_gpa, max_scale_point
-        );
+    let (feasibility_level, feasible, message) = if required_future_gpa > max_scale_point {
+        (
+            "INFEASIBLE".to_string(),
+            false,
+            format!(
+                "INFEASIBLE: Requires GPA {:.2} (max: {:.2})",
+                required_future_gpa, max_scale_point
+            ),
+        )
+    } else if required_future_gpa > max_scale_point * 0.9 {
+        (
+            "CHALLENGING".to_string(),
+            false,
+            format!(
+                "EXTREMELY HARD: Requires GPA {:.2}/{:.2}",
+                required_future_gpa, max_scale_point
+            ),
+        )
+    } else if required_future_gpa > max_scale_point * 0.75 {
+        (
+            "FEASIBLE".to_string(),
+            true,
+            format!(
+                "CHALLENGING: Requires GPA {:.2}/{:.2}",
+                required_future_gpa, max_scale_point
+            ),
+        )
     } else {
-        feasibility_level = "EASY".to_string();
-        feasible = true;
-        message = format!(
-            "EASY: Requires GPA {:.2}/{:.2}. Well within reach.",
-            required_future_gpa, max_scale_point
-        );
-    }
+        (
+            "EASY".to_string(),
+            true,
+            format!(
+                "FEASIBLE: Requires GPA {:.2}/{:.2}",
+                required_future_gpa, max_scale_point
+            ),
+        )
+    };
 
     Ok(ProjectionResult {
         current_cgpa,
@@ -167,6 +180,50 @@ pub fn project_future_requirements(
         message,
         horizon,
     })
+}
+
+#[tauri::command]
+pub fn add_study_tasks_to_planner(
+    state: tauri::State<crate::DbState>,
+    course_id: i64,
+    hours_per_week: i32,
+) -> Result<(), String> {
+    let conn_arc = state.db_manager.get_active_profile_db()?;
+    let conn = conn_arc.lock().unwrap();
+
+    // Get course name
+    let course_name: String = conn
+        .query_row(
+            "SELECT name FROM repositories WHERE id = ?1",
+            [course_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    // Create a few events for the next 4 weeks
+    let current_date = chrono::Local::now();
+    for week in 0..4 {
+        for session in 0..2 {
+            // 2 sessions per week
+            let start = current_date + chrono::Duration::days(week * 7 + session * 2);
+            let end = start + chrono::Duration::hours((hours_per_week / 2) as i64);
+
+            let start_str = start.to_rfc3339();
+            let end_str = end.to_rfc3339();
+
+            crate::db::create_planner_event(
+                &conn,
+                Some(course_id),
+                format!("Study: {}", course_name),
+                Some(format!("Planned study session based on grade target.")),
+                start_str,
+                end_str,
+                None,
+            )?;
+        }
+    }
+
+    Ok(())
 }
 
 /// Distributes required GPA across remaining semesters

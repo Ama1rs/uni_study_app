@@ -11,7 +11,7 @@ export function SpendingItem({ category, amount, trend, onClick }: SpendingItemP
     return (
         <div
             onClick={onClick}
-            className="flex items-center justify-between p-3 border-b border-border/50 last:border-0 hover:bg-white/5 transition-colors group cursor-pointer"
+            className="flex items-center justify-between p-3 border-b border-border/50 last:border-0 hover:bg-bg-hover transition-colors group cursor-pointer"
         >
             <div className="flex items-center gap-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-accent" />

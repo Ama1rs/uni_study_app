@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Play, Pause, RotateCcw, Music, Settings2, Timer, Calendar, CheckCircle2, Circle, BarChart3 } from 'lucide-react';
+import { Play, Pause, RotateCcw, Music, Settings2, Calendar, CheckCircle2, Circle } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { cn } from '../../lib/utils';
-import { Layout } from '../../components/layout/Layout';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface Repository {
     id: number;
@@ -34,6 +34,8 @@ interface StudySession {
 
 export function FocusMode() {
     const [isActive, setIsActive] = useState(false);
+    const { mode } = useTheme();
+    const isDarkMode = mode === 'dark';
     const [timeLeft, setTimeLeft] = useState(25 * 60);
     const [elapsedTime, setElapsedTime] = useState(0); // For stopwatch
     const [sessionType, setSessionType] = useState<'focus' | 'break' | 'stopwatch'>('focus');
@@ -44,10 +46,24 @@ export function FocusMode() {
     const [sessions, setSessions] = useState<StudySession[]>([]);
     const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
     const [showStats, setShowStats] = useState(false);
+    const [showStopConfirmation, setShowStopConfirmation] = useState(false);
+    const [shouldPulse, setShouldPulse] = useState(false);
+    const [lastPulseMinute, setLastPulseMinute] = useState(-1);
+    const [canTakeBreak, setCanTakeBreak] = useState(false);
 
     useEffect(() => {
         loadInitialData();
     }, []);
+
+    useEffect(() => {
+        if (isActive) {
+            document.body.classList.add('nav-locked');
+        } else {
+            document.body.classList.remove('nav-locked');
+        }
+        return () => document.body.classList.remove('nav-locked');
+    }, [isActive]);
+
 
     async function loadInitialData() {
         try {
@@ -101,12 +117,23 @@ export function FocusMode() {
         if (isActive) {
             interval = setInterval(() => {
                 if (sessionType === 'stopwatch') {
-                    setElapsedTime(prev => prev + 1);
+                    setElapsedTime(prev => {
+                        const next = prev + 1;
+                        if (Math.floor(next / 60) > Math.floor(prev / 60)) {
+                            setShouldPulse(true);
+                        }
+                        return next;
+                    });
                 } else {
                     setTimeLeft(prev => {
                         if (prev <= 1) {
-                            handleSessionComplete();
+                            handleSessionComplete(true);
                             return 0;
+                        }
+                        const currentMinute = Math.floor(prev / 60);
+                        if (currentMinute !== lastPulseMinute && prev % 60 === 0) {
+                            setShouldPulse(true);
+                            setLastPulseMinute(currentMinute);
                         }
                         return prev - 1;
                     });
@@ -114,17 +141,38 @@ export function FocusMode() {
             }, 1000);
         }
         return () => clearInterval(interval);
-    }, [isActive, sessionType]);
+    }, [isActive, sessionType, lastPulseMinute]);
 
-    const handleSessionComplete = async () => {
+    // Handle pulse reset
+    useEffect(() => {
+        if (shouldPulse) {
+            const timer = setTimeout(() => setShouldPulse(false), 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [shouldPulse]);
+
+    const handleSessionComplete = async (isFinished: boolean = false, force: boolean = false) => {
+        if (!isFinished && !force && isActive && sessionType === 'focus' && timeLeft > 0) {
+            setShowStopConfirmation(true);
+            return;
+        }
+
         setIsActive(false);
+        setShowStopConfirmation(false);
         if (currentSessionId) {
             const endAt = new Date().toISOString();
-            const duration = sessionType === 'stopwatch' ? elapsedTime : (sessionType === 'focus' ? 25 * 60 : 5 * 60);
-            await invoke('stop_study_session', { id: currentSessionId, endAt: endAt, duration });
+            const duration = sessionType === 'stopwatch' ? elapsedTime : (sessionType === 'focus' ? (25 * 60 - timeLeft) : (5 * 60 - timeLeft));
+            await invoke('stop_study_session', { id: currentSessionId, endAt: endAt, duration: Math.max(0, Math.floor(duration)) });
             setCurrentSessionId(null);
-            // Refresh data
             loadInitialData();
+            if (sessionType === 'focus' && isFinished) {
+                setCanTakeBreak(true);
+                setSessionType('break');
+                setTimeLeft(5 * 60);
+            }
+        } else {
+            // Also reset UI if no session ID (e.g. stopped before start completed)
+            resetTimer();
         }
     };
 
@@ -134,9 +182,9 @@ export function FocusMode() {
             const startAt = new Date().toISOString();
             try {
                 const id = await invoke<number>('start_study_session', {
-                    repository_id: selectedRepo,
-                    start_at: startAt,
-                    is_break: sessionType === 'break'
+                    repositoryId: selectedRepo,
+                    startAt: startAt,
+                    isBreak: sessionType === 'break'
                 });
                 setCurrentSessionId(id);
                 setIsActive(true);
@@ -144,9 +192,23 @@ export function FocusMode() {
                 console.error("Failed to start session:", e);
             }
         } else {
-            handleSessionComplete();
+            handleSessionComplete(false);
         }
     };
+
+    useEffect(() => {
+        const handleKeyPress = (e: KeyboardEvent) => {
+            if (showStopConfirmation || showStats) return;
+            if (e.code === 'Space' || e.key === 'Enter') {
+                // Don't toggle if user is typing in a select or something
+                if (document.activeElement?.tagName === 'SELECT' || document.activeElement?.tagName === 'INPUT') return;
+                e.preventDefault();
+                toggleTimer();
+            }
+        };
+        window.addEventListener('keydown', handleKeyPress);
+        return () => window.removeEventListener('keydown', handleKeyPress);
+    }, [isActive, showStopConfirmation, showStats, toggleTimer]);
 
     const resetTimer = () => {
         setIsActive(false);
@@ -176,229 +238,355 @@ export function FocusMode() {
     };
 
     return (
-        <Layout>
-            <div className="flex-1 h-full flex overflow-hidden relative">
-                {/* Main Content */}
-                <div className="flex-1 flex flex-col items-center justify-center p-8 transition-all duration-500">
-                    <div className={cn("z-10 flex flex-col items-center gap-12 w-full max-w-2xl transition-all duration-500", showStats && "scale-90 opacity-60 pointer-events-none blur-sm")}>
-                        {/* Session Type Toggle */}
-                        <div className="flex items-center gap-2 p-1 rounded-full border border-border bg-bg-hover backdrop-blur-sm">
-                            {(['focus', 'stopwatch', 'break'] as const).map((type) => (
-                                <button
-                                    key={type}
-                                    onClick={() => {
-                                        if (isActive) return;
-                                        setSessionType(type);
-                                        resetTimer();
-                                    }}
-                                    className={cn(
-                                        "px-6 py-2 rounded-full text-sm font-medium transition-all text-text-secondary",
-                                        sessionType === type && "bg-accent/10 text-accent shadow-sm"
-                                    )}
-                                >
-                                    {type.charAt(0).toUpperCase() + type.slice(1)}
-                                </button>
-                            ))}
-                        </div>
+        <div className={cn(
+            "flex-1 h-full flex flex-col relative bg-bg-primary",
+            isActive ? "overflow-hidden" : "overflow-y-auto custom-scrollbar"
+        )}>
+            {/* Vignette Effect when active */}
+            <AnimatePresence>
+                {isActive && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 pointer-events-none z-0"
+                        style={{
+                            background: isDarkMode
+                                ? 'radial-gradient(circle at center, transparent 0%, rgba(0,0,0,0.4) 70%, rgba(0,0,0,0.7) 100%)'
+                                : 'radial-gradient(circle at center, transparent 0%, rgba(0,0,0,0.1) 70%, rgba(0,0,0,0.2) 100%)'
+                        }}
+                    />
+                )}
+            </AnimatePresence>
 
-                        {/* Subject Selection */}
-                        <div className="flex flex-col items-center gap-2">
-                            <span className="text-xs text-text-tertiary uppercase tracking-widest font-bold">studying for</span>
-                            <select
-                                value={selectedRepo || ''}
-                                onChange={(e) => setSelectedRepo(e.target.value ? Number(e.target.value) : null)}
-                                disabled={isActive}
-                                className="bg-transparent text-text-primary text-lg font-medium outline-none border-b border-border-light hover:border-accent transition-colors py-1 cursor-pointer appearance-none text-center min-w-[200px]"
-                            >
-                                <option value="" className="bg-bg-primary">General Study</option>
-                                {repos.map(r => <option key={r.id} value={r.id} className="bg-bg-primary">{r.name}</option>)}
-                            </select>
-                        </div>
-
-                        {/* Timer Display */}
-                        <div className="relative group cursor-default select-none flex flex-col items-center">
-                            <motion.div
-                                className="text-[10rem] leading-none font-bold tracking-tighter tabular-nums text-text-primary"
-                                animate={{ scale: isActive ? [1, 1.02, 1] : 1 }}
-                                transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-                            >
-                                {formatTime(sessionType === 'stopwatch' ? elapsedTime : timeLeft)}
-                            </motion.div>
-                            <p className="text-xl font-medium mt-4 opacity-50 text-text-secondary">
-                                {isActive ? (sessionType === 'break' ? 'Time to recharge' : 'Deep focus active') : 'Ready to start?'}
-                            </p>
-                        </div>
-
-                        {/* Controls */}
-                        <div className="flex items-center gap-6">
+            {/* Main Content Container */}
+            <div className={cn(
+                "flex-1 flex flex-col items-center p-8 transition-all duration-700 relative z-10",
+                isActive ? "justify-center h-full" : "justify-start pt-12"
+            )}>
+                {/* Top Tabs */}
+                <div className={cn("flex flex-col items-center gap-16 w-full max-w-4xl transition-all duration-500", showStats && "opacity-20 pointer-events-none")}>
+                    <div className={cn(
+                        "flex items-center gap-10 border-b border-border/20 pb-0 px-2 relative transition-all duration-700",
+                        isActive && "opacity-0 -translate-y-4 pointer-events-none h-0 mb-[-64px]"
+                    )}>
+                        {(['focus', 'stopwatch', 'break'] as const).map((type) => (
                             <button
-                                onClick={toggleTimer}
+                                key={type}
+                                onClick={() => {
+                                    if (isActive) return;
+                                    setSessionType(type);
+                                    resetTimer();
+                                }}
+                                disabled={isActive || (type === 'break' && !canTakeBreak)}
                                 className={cn(
-                                    "w-20 h-20 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-xl shadow-accent/20",
-                                    isActive ? "bg-bg-surface border-2 border-accent text-accent" : "bg-accent text-black"
+                                    "text-[10px] font-bold uppercase tracking-[0.25em] transition-all relative py-4 px-2",
+                                    sessionType === type ? "text-text-primary" : "text-text-tertiary hover:text-text-secondary disabled:opacity-20 disabled:cursor-not-allowed",
                                 )}
                             >
-                                {isActive ? <Pause size={32} /> : <Play size={32} className="ml-1" />}
+                                {type}
+                                {sessionType === type && (
+                                    <motion.div
+                                        layoutId="activeTabIndicator"
+                                        className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-accent z-20"
+                                        transition={{ type: "spring", bounce: 0, duration: 0.3 }}
+                                    />
+                                )}
                             </button>
-
-                            <button
-                                onClick={resetTimer}
-                                className="w-14 h-14 rounded-full flex items-center justify-center border border-border transition-all hover:bg-bg-hover active:scale-95 text-text-secondary hover:text-text-primary"
-                            >
-                                <RotateCcw size={20} />
-                            </button>
-                        </div>
+                        ))}
                     </div>
 
-                    {/* Statistics Overlay */}
-                    <AnimatePresence>
-                        {showStats && (
+                    {/* Timer Section */}
+                    <div className={cn(
+                        "flex flex-col items-center w-full transition-all duration-700",
+                        isActive ? "gap-24" : "gap-12"
+                    )}>
+                        {/* Header Info */}
+                        <div className={cn(
+                            "flex flex-col items-center gap-4 transition-all duration-700",
+                            isActive ? (isDarkMode ? "opacity-40 scale-90" : "opacity-60 scale-90") : "opacity-100"
+                        )}>
+                            <span className={cn(
+                                "text-[9px] uppercase tracking-[0.4em] font-black opacity-40 text-text-tertiary"
+                            )}>
+                                Currently Focusing On
+                            </span>
+                            <div className="relative group">
+                                <select
+                                    value={selectedRepo || ''}
+                                    onChange={(e) => setSelectedRepo(e.target.value ? Number(e.target.value) : null)}
+                                    disabled={isActive}
+                                    className={cn(
+                                        "bg-transparent text-3xl font-black outline-none transition-all py-1 cursor-pointer appearance-none text-center min-w-[300px] border-b border-transparent hover:border-border/30 focus:border-accent/50 text-text-primary",
+                                        isActive && "cursor-default border-transparent"
+                                    )}
+                                >
+                                    <option value="" className="bg-bg-surface text-text-primary">General Study</option>
+                                    {repos.map(r => <option key={r.id} value={r.id} className="bg-bg-surface text-text-primary">{r.name}</option>)}
+                                </select>
+                                {!isActive && <Settings2 size={12} className="absolute -right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-40 transition-opacity text-text-tertiary" />}
+                            </div>
+                        </div>
+
+                        {/* Clock Display */}
+                        <div className="relative cursor-default select-none text-center flex flex-col items-center">
                             <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: 20 }}
-                                className="absolute inset-0 z-20 flex items-center justify-center p-8 pointer-events-none"
+                                animate={shouldPulse ? { scale: [1, 1.02, 1] } : {}}
+                                transition={{ duration: 0.5 }}
+                                className="relative flex items-center justify-center min-h-[14rem]"
                             >
-                                <div className="bg-bg-surface/90 backdrop-blur-xl border border-border p-8 rounded-[2rem] shadow-2xl w-full max-w-4xl max-h-[80vh] overflow-y-auto pointer-events-auto custom-scrollbar">
-                                    <div className="flex items-center justify-between mb-8">
-                                        <h2 className="text-2xl font-bold text-text-primary flex items-center gap-3">
-                                            <BarChart3 className="text-accent" />
-                                            Study Insights
-                                        </h2>
-                                        <button onClick={() => setShowStats(false)} className="text-text-secondary hover:text-text-primary">Close</button>
-                                    </div>
+                                <span className={cn(
+                                    "text-[12rem] leading-none font-black tracking-tighter tabular-nums font-mono transition-all duration-1000 z-10 text-text-primary",
+                                    isActive ? (isDarkMode ? "drop-shadow-[0_0_80px_rgba(255,255,255,0.08)]" : "drop-shadow-[0_0_80px_rgba(0,0,0,0.05)]") : "opacity-90"
+                                )}>
+                                    {formatTime(sessionType === 'stopwatch' ? elapsedTime : timeLeft)}
+                                </span>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                                        {/* Heatmap */}
-                                        <section>
-                                            <h3 className="text-sm font-bold text-text-tertiary uppercase tracking-widest mb-4">Consistency (Last 14 Days)</h3>
-                                            <div className="flex flex-wrap gap-2">
-                                                {stats.heatmap.map((day) => {
-                                                    const intensity = Math.min(day.duration / (4 * 3600), 1); // 4 hours max intensity
-                                                    return (
-                                                        <div
-                                                            key={day.date}
-                                                            className="w-8 h-8 rounded-md relative group transition-transform hover:scale-110"
-                                                            style={{
-                                                                backgroundColor: day.duration > 0
-                                                                    ? `rgba(var(--accent-rgb), ${0.2 + intensity * 0.8})`
-                                                                    : 'var(--bg-hover)'
-                                                            }}
-                                                        >
-                                                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-2 rounded bg-bg-primary border border-border text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
-                                                                {new Date(day.date).toLocaleDateString()}: {formatDuration(day.duration)}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </section>
+                                {/* Progress Ring / Glow when active */}
+                                {isActive && (
+                                    <div className="absolute inset-0 -m-20 pointer-events-none overflow-visible flex items-center justify-center">
 
-                                        {/* Subject Breakdown */}
-                                        <section>
-                                            <h3 className="text-sm font-bold text-text-tertiary uppercase tracking-widest mb-4">Subject Breakdown (Today)</h3>
-                                            <div className="space-y-4">
-                                                {stats.subjectData.map(item => (
-                                                    <div key={item.name} className="flex flex-col gap-1">
-                                                        <div className="flex items-center justify-between text-xs font-medium">
-                                                            <span className="text-text-secondary">{item.name}</span>
-                                                            <span className="text-text-primary">{formatDuration(item.duration)}</span>
-                                                        </div>
-                                                        <div className="h-1.5 w-full bg-bg-hover rounded-full overflow-hidden">
-                                                            <motion.div
-                                                                initial={{ width: 0 }}
-                                                                animate={{ width: `${(item.duration / stats.totalToday) * 100}%` }}
-                                                                className="h-full"
-                                                                style={{ backgroundColor: item.color }}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                                {stats.subjectData.length === 0 && <p className="text-xs text-text-tertiary italic text-center py-8">No data for today</p>}
-                                            </div>
-                                        </section>
+                                        <motion.div
+                                            className={cn(
+                                                "absolute inset-0 rounded-[50px] border backdrop-blur-[24px] transition-colors duration-700",
+                                                isDarkMode
+                                                    ? "border-border/30 bg-bg-surface/30"
+                                                    : "border-black/5 bg-white/40 shadow-xl"
+                                            )}
+                                            initial={{ opacity: 0, scale: 0.9 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                        />
                                     </div>
-                                </div>
+                                )}
                             </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
 
-                {/* Right Sidebar - D-Days & Integrated Tasks */}
-                <div className="w-80 border-l border-border bg-bg-surface/30 p-6 flex flex-col gap-8 overflow-y-auto z-10">
-                    {/* D-Day Section */}
-                    <section>
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-sm font-bold text-text-primary flex items-center gap-2">
-                                <Calendar size={14} className="text-accent" />
-                                COUNTDOWNS
-                            </h3>
-                            <button className="text-xs text-accent hover:underline">Manage</button>
+                            <div className="h-10 mt-6 flex items-center justify-center">
+                                <p className={cn(
+                                    "text-[11px] font-bold uppercase tracking-[0.7em] transition-all duration-500",
+                                    isActive ? "text-accent animate-pulse" : "text-text-tertiary opacity-30"
+                                )}>
+                                    {isActive
+                                        ? (sessionType === 'break' ? 'Recharging' : 'Deep Focus Active')
+                                        : 'Ready to commit?'
+                                    }
+                                </p>
+                            </div>
                         </div>
-                        <div className="space-y-3">
-                            {dDays.map(day => (
-                                <div key={day.id} className="p-3 rounded-xl bg-bg-primary border border-border flex items-center justify-between group hover:border-accent/50 transition-colors">
-                                    <div>
-                                        <p className="text-sm font-medium text-text-primary">{day.title}</p>
-                                        <p className="text-[10px] text-text-tertiary">{new Date(day.target_date).toLocaleDateString()}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-lg font-bold text-accent">D-{calculateDaysLeft(day.target_date)}</p>
-                                    </div>
-                                </div>
-                            ))}
-                            {dDays.length === 0 && <p className="text-xs text-text-tertiary italic text-center py-4">No countdowns set</p>}
-                        </div>
-                    </section>
 
-                    {/* Today's Goals Section */}
-                    <section className="flex-1 flex flex-col min-h-0">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-sm font-bold text-text-primary flex items-center gap-2">
-                                <CheckCircle2 size={14} className="text-accent" />
-                                GOALS
-                            </h3>
-                        </div>
-                        <div className="space-y-2 overflow-y-auto flex-1 pr-2 custom-scrollbar">
-                            {tasks.map(task => (
-                                <div key={task.id} className="flex items-center gap-3 group">
-                                    <button className={cn("transition-colors", task.completed ? "text-accent" : "text-border-light")}>
-                                        {task.completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                        {/* Action Button */}
+                        <div className="flex flex-col items-center gap-8 mt-4">
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={toggleTimer}
+                                className={cn(
+                                    "group relative px-20 py-5 rounded-full flex items-center gap-4 transition-all duration-500 shadow-2xl overflow-hidden font-black",
+                                    isActive
+                                        ? (isDarkMode
+                                            ? "bg-bg-surface/50 border border-border/50 text-text-secondary hover:border-red-500/50 hover:text-red-500 backdrop-blur-md"
+                                            : "bg-white/50 border border-text-primary/10 text-text-primary/60 hover:border-red-500/50 hover:text-red-500 backdrop-blur-md shadow-[0_4px_20px_rgba(0,0,0,0.05)]")
+                                        : (isDarkMode
+                                            ? "bg-text-primary text-bg-primary hover:bg-text-secondary shadow-[0_0_50px_rgba(255,255,255,0.15)]"
+                                            : "bg-text-primary text-bg-primary hover:bg-text-primary/90 shadow-2xl")
+                                )}
+                            >
+                                {isActive ? (
+                                    <>
+                                        <Pause size={18} fill="currentColor" />
+                                        <span className="text-[14px] uppercase tracking-[0.3em] font-black">Stop Session</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Play size={18} fill="currentColor" className="ml-1" />
+                                        <span className="text-[14px] uppercase tracking-[0.3em] font-black">Start Focus</span>
+                                    </>
+                                )}
+                            </motion.button>
+
+                            <div className="flex items-center gap-8">
+                                {!isActive && (
+                                    <p className="text-[10px] text-text-tertiary uppercase tracking-[0.4em] font-bold opacity-20">
+                                        Deep work sessions extend your streak
+                                    </p>
+                                )}
+
+                                {!isActive && (sessionType === 'stopwatch' ? elapsedTime > 0 : timeLeft < (sessionType === 'focus' ? 25 * 60 : 5 * 60)) && (
+                                    <button
+                                        onClick={resetTimer}
+                                        className="px-4 py-2 rounded-full text-text-tertiary hover:text-text-primary transition-colors flex items-center gap-2 hover:bg-bg-hover border border-border/30"
+                                    >
+                                        <RotateCcw size={14} />
+                                        <span className="text-[10px] font-bold uppercase tracking-widest">Reset</span>
                                     </button>
-                                    <span className={cn("text-xs transition-colors", task.completed ? "text-text-tertiary line-through" : "text-text-secondary group-hover:text-text-primary")}>
-                                        {task.title}
-                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Integrated Info Section */}
+                <div className={cn(
+                    "w-full max-w-6xl transition-all duration-700",
+                    isActive ? "h-0 overflow-hidden opacity-0 pointer-events-none mt-0 mb-0" : "opacity-100 mt-24 mb-12"
+                )}>
+                    <div className="grid grid-cols-3 gap-12">
+                        {/* Session Analytics */}
+                        <div className="space-y-8 bg-bg-surface/40 p-8 rounded-3xl border border-border/30 backdrop-blur-sm">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-[10px] font-bold uppercase tracking-widest text-text-tertiary">Session Info</h2>
+                                <div className="flex gap-2">
+                                    <button className="p-2 hover:bg-white/5 rounded-md text-text-tertiary transition-colors"><Music size={14} /></button>
+                                    <button className="p-2 hover:bg-bg-hover rounded-md text-text-tertiary transition-colors" onClick={() => setShowStats(true)}><Settings2 size={14} /></button>
                                 </div>
-                            ))}
-                            {tasks.length === 0 && <p className="text-xs text-text-tertiary italic text-center py-4">No goals for today</p>}
-                        </div>
-                    </section>
-                </div>
+                            </div>
 
-                {/* Bottom Analytics Overlay */}
-                <div className="absolute bottom-6 left-8 flex items-center gap-4 z-10">
-                    <button
-                        onClick={() => setShowStats(!showStats)}
-                        className="flex items-center gap-2 p-3 rounded-2xl bg-bg-surface/80 backdrop-blur-md border border-border shadow-lg hover:border-accent transition-colors group"
-                    >
-                        <Timer size={16} className="text-accent" />
-                        <div className="text-left">
-                            <p className="text-[10px] uppercase font-bold text-text-tertiary leading-none">Total Today</p>
-                            <p className="text-sm font-bold text-text-primary group-hover:text-accent transition-colors">{formatDuration(stats.totalToday)}</p>
-                        </div>
-                    </button>
-                </div>
+                            <div className="grid grid-cols-2 gap-8">
+                                <div>
+                                    <p className="text-[9px] text-text-tertiary uppercase tracking-[0.2em] font-bold mb-2 opacity-50">Total Today</p>
+                                    <p className="text-3xl font-black font-mono text-text-primary tabular-nums">
+                                        {formatDuration(stats.totalToday)}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-[9px] text-text-tertiary uppercase tracking-[0.2em] font-bold mb-2 opacity-50">Current Streak</p>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-3xl font-black font-mono text-orange-500 tabular-nums">12</span>
+                                        <span className="text-xl animate-pulse">🔥</span>
+                                    </div>
+                                </div>
+                            </div>
 
-                {/* Settings & Sound Overlay */}
-                <div className="absolute bottom-6 right-[22rem] flex items-center gap-3 z-10">
-                    <button className="p-3 rounded-full border border-border bg-bg-surface/80 hover:bg-bg-hover transition-colors text-text-secondary" title="Ambient Sounds">
-                        <Music size={18} />
-                    </button>
-                    <button className="p-3 rounded-full border border-border bg-bg-surface/80 hover:bg-bg-hover transition-colors text-text-secondary" title="Timer Settings">
-                        <Settings2 size={18} />
-                    </button>
+                            <div className="p-5 rounded-2xl bg-orange-500/[0.03] border border-orange-500/10">
+                                <p className="text-[9px] text-orange-500/70 font-bold uppercase tracking-[0.15em] leading-relaxed">
+                                    Don't break the chain. High focus sessions today will extend your survival streak.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Upcoming Events */}
+                        <div className="space-y-6 bg-bg-surface/40 p-8 rounded-3xl border border-border/30 backdrop-blur-sm">
+                            <h3 className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest flex items-center gap-2">
+                                <Calendar size={12} />
+                                Up Next
+                            </h3>
+                            <div className="flex flex-col">
+                                {dDays.slice(0, 3).map(day => (
+                                    <div key={day.id} className="py-4 border-b border-border/30 flex items-center justify-between group last:border-0">
+                                        <div className="overflow-hidden mr-2">
+                                            <p className="text-[13px] font-medium text-text-primary group-hover:text-accent transition-colors truncate">{day.title}</p>
+                                            <p className="text-[10px] text-text-tertiary mt-1">{new Date(day.target_date).toLocaleDateString()}</p>
+                                        </div>
+                                        <span className="text-sm font-bold text-text-secondary font-mono flex-shrink-0 bg-bg-surface/50 px-3 py-1 rounded-full">
+                                            {calculateDaysLeft(day.target_date)}d
+                                        </span>
+                                    </div>
+                                ))}
+                                {dDays.length === 0 && <span className="text-xs text-text-tertiary italic opacity-40">No upcoming dates.</span>}
+                            </div>
+                        </div>
+
+                        {/* Goals/Tasks */}
+                        <div className="space-y-6 bg-bg-surface/40 p-8 rounded-3xl border border-border/30 backdrop-blur-sm">
+                            <h3 className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest flex items-center gap-2">
+                                <CheckCircle2 size={12} />
+                                Today's Goals
+                            </h3>
+                            <div className="flex flex-col gap-1">
+                                {tasks.slice(0, 5).map(task => (
+                                    <button key={task.id} className="flex items-start gap-3 py-3 text-left group hover:bg-bg-hover -mx-2 px-2 rounded-xl transition-all">
+                                        <div className={cn("mt-0.5", task.completed ? "text-accent" : "text-border group-hover:text-text-secondary")}>
+                                            {task.completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                                        </div>
+                                        <span className={cn("text-[13px] leading-relaxed", task.completed ? "text-text-tertiary line-through" : "text-text-secondary group-hover:text-text-primary")}>
+                                            {task.title}
+                                        </span>
+                                    </button>
+                                ))}
+                                {tasks.length === 0 && <span className="text-xs text-text-tertiary italic opacity-40">No goals set for today.</span>}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </Layout>
+
+            {/* Confirmation Modal for Stopping */}
+            <AnimatePresence>
+                {showStopConfirmation && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] flex items-center justify-center bg-bg-primary/80 backdrop-blur-md p-6"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            className="bg-bg-surface border border-border p-10 rounded-3xl shadow-2xl max-w-md w-full text-center"
+                        >
+                            <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-6">
+                                <Pause size={40} className="text-red-500" />
+                            </div>
+                            <h2 className="text-2xl font-black text-text-primary mb-4 uppercase tracking-tighter">Exit session prematurely?</h2>
+                            <p className="text-text-secondary text-sm mb-10 leading-relaxed font-medium">
+                                Ending early will reset your progress for this session and could break your daily momentum. Are you sure you want to stop?
+                            </p>                                <div className="flex flex-col gap-3">
+                                <button
+                                    onClick={() => setShowStopConfirmation(false)}
+                                    className="w-full py-4 bg-text-primary text-bg-primary font-black uppercase tracking-widest rounded-2xl hover:bg-text-secondary transition-colors"
+                                >
+                                    Keep Focusing
+                                </button>
+                                <button
+                                    onClick={() => handleSessionComplete(false, true)}
+                                    className="w-full py-4 bg-transparent text-text-tertiary font-bold uppercase tracking-widest rounded-2xl hover:text-red-500 transition-colors"
+                                >
+                                    End Session Anyway
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Reuse Stats Modal Logic */}
+            <AnimatePresence>
+                {showStats && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-bg-primary/80 backdrop-blur-sm"
+                        onClick={() => setShowStats(false)}
+                    >
+                        <div className="bg-bg-surface border border-border p-8 rounded-lg shadow-2xl w-full max-w-4xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center justify-between mb-8">
+                                <h2 className="text-xl font-bold text-text-primary">Study Insights</h2>
+                                <button onClick={() => setShowStats(false)} className="text-text-secondary hover:text-text-primary">Close</button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-8">
+                                <div>
+                                    <h3 className="text-xs font-bold uppercase tracking-widest text-text-tertiary mb-4">Today's Focus</h3>
+                                    {stats.subjectData.map(item => (
+                                        <div key={item.name} className="flex items-center justify-between py-2 border-b border-border/50">
+                                            <span className="text-sm text-text-secondary">{item.name}</span>
+                                            <span className="text-sm font-mono text-text-primary">{formatDuration(item.duration)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div>
+                                    <h3 className="text-xs font-bold uppercase tracking-widest text-text-tertiary mb-4">Activity</h3>
+                                    <div className="flex flex-wrap gap-1">
+                                        {stats.heatmap.map((day, i) => (
+                                            <div key={i} className="w-6 h-6 rounded-sm bg-accent" style={{ opacity: day.duration ? 0.2 + (day.duration / 10000) : 0.1 }} title={`${day.date}: ${formatDuration(day.duration)}`} />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
     );
 }

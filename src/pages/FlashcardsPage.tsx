@@ -2,15 +2,21 @@ import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Resource, Flashcard } from '../types/node-system';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, Layers, ChevronRight, Brain, ArrowRight, Flame, Activity, Trophy, Clock, Sparkles } from 'lucide-react';
+import { BookOpen, Layers, ChevronRight, Brain, ArrowRight, Flame, Trophy, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { containerVariants, itemVariants } from '../lib/animations';
+import { DealerMode } from '../features/flashcards/DealerMode';
 
 interface Deck {
     id: number | 'all';
     title: string;
     count: number;
     cards: Flashcard[];
+}
+
+interface StudySession {
+    id: number;
+    start_at: string;
+    is_break: boolean;
 }
 
 export function FlashcardsPage() {
@@ -22,6 +28,8 @@ export function FlashcardsPage() {
     const [currentCardIndex, setCurrentCardIndex] = useState(0);
     const [isFlipped, setIsFlipped] = useState(false);
     const [sessionStats, setSessionStats] = useState({ reviewed: 0, correct: 0 });
+    const [streak, setStreak] = useState(0);
+    const [dealerMode, setDealerMode] = useState(false);
 
 
     useEffect(() => {
@@ -30,10 +38,33 @@ export function FlashcardsPage() {
 
     async function loadData() {
         try {
-            const [cards, resources] = await Promise.all([
+            const [cards, resources, sessions] = await Promise.all([
                 invoke<Flashcard[]>('get_all_flashcards'),
-                invoke<Resource[]>('get_resources')
+                invoke<Resource[]>('get_resources'),
+                invoke<StudySession[]>('get_study_sessions', { from: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString() })
             ]);
+
+            const daysSet = new Set(
+                sessions
+                    .filter(s => !s.is_break)
+                    .map(s => s.start_at.split('T')[0])
+            );
+
+            let s = 0;
+            const currentCheck = new Date();
+            let checkStr = currentCheck.toISOString().split('T')[0];
+
+            if (!daysSet.has(checkStr)) {
+                currentCheck.setDate(currentCheck.getDate() - 1);
+                checkStr = currentCheck.toISOString().split('T')[0];
+            }
+
+            while (daysSet.has(checkStr)) {
+                s++;
+                currentCheck.setDate(currentCheck.getDate() - 1);
+                checkStr = currentCheck.toISOString().split('T')[0];
+            }
+            setStreak(s);
 
             const noteMap = new Map(resources.map(r => [r.id, r]));
             const deckMap = new Map<number, Flashcard[]>();
@@ -130,10 +161,47 @@ export function FlashcardsPage() {
         const currentCard = studyQueue[currentCardIndex];
         const progress = ((currentCardIndex) / studyQueue.length) * 100;
 
+        // Dealer Mode View
+        if (dealerMode) {
+            return (
+                <div className="flex-1 w-full flex flex-col bg-bg-primary relative overflow-hidden">
+                    {/* Header with mode toggle */}
+                    <div className="absolute top-8 left-8 z-50 flex items-center gap-4">
+                        <button
+                            onClick={() => setView('preview')}
+                            className="group flex items-center gap-2 text-text-secondary hover:text-text-primary transition-all px-4 py-2 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/5 backdrop-blur-sm"
+                        >
+                            <ChevronRight className="rotate-180 group-hover:-translate-x-1 transition-transform" size={20} />
+                            <span className="font-medium">End Session</span>
+                        </button>
+
+                        <button
+                            onClick={() => setDealerMode(false)}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-accent/30 transition-all text-text-secondary hover:text-text-primary backdrop-blur-sm"
+                        >
+                            <Sparkles size={16} />
+                            <span className="text-sm font-medium">Flat Mode</span>
+                        </button>
+                    </div>
+
+                    <DealerMode
+                        currentCard={currentCard}
+                        isFlipped={isFlipped}
+                        onFlip={() => setIsFlipped(!isFlipped)}
+                        onRate={handleRate}
+                        progress={progress}
+                        currentIndex={currentCardIndex}
+                        totalCards={studyQueue.length}
+                    />
+                </div>
+            );
+        }
+
+        // Flat Mode View (Original)
         return (
-            <div className="flex-1 w-full flex flex-col bg-bg-base relative overflow-hidden">
+            <div className="flex-1 w-full flex flex-col bg-bg-primary relative overflow-hidden">
                 {/* Stats / Progress Header */}
-                <div className="p-8 flex items-center justify-between z-10 bg-gradient-to-b from-bg-base/80 to-transparent backdrop-blur-sm">
+                <div className="p-8 flex items-center justify-between z-10 bg-gradient-to-b from-bg-primary/80 to-transparent backdrop-blur-sm">
                     <button
                         onClick={() => setView('preview')}
                         className="group flex items-center gap-2 text-text-secondary hover:text-text-primary transition-all px-4 py-2 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/5"
@@ -141,18 +209,29 @@ export function FlashcardsPage() {
                         <ChevronRight className="rotate-180 group-hover:-translate-x-1 transition-transform" size={20} />
                         <span className="font-medium">End Session</span>
                     </button>
-                    <div className="flex flex-col items-end gap-2">
-                        <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-widest text-text-tertiary">
-                            <span>Progress</span>
-                            <span className="text-accent">{currentCardIndex + 1} / {studyQueue.length}</span>
-                        </div>
-                        <div className="w-48 h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/5">
-                            <motion.div
-                                className="h-full bg-accent"
-                                initial={{ width: 0 }}
-                                animate={{ width: `${progress}%` }}
-                                transition={{ duration: 0.5, ease: "easeOut" }}
-                            />
+                    <div className="flex items-center gap-4">
+                        {/* Dealer Mode Toggle */}
+                        <button
+                            onClick={() => setDealerMode(true)}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent/10 hover:bg-accent/20 border border-accent/20 hover:border-accent/40 transition-all text-accent hover:scale-105 active:scale-95"
+                        >
+                            <Sparkles size={16} />
+                            <span className="text-sm font-bold">Dealer Mode</span>
+                        </button>
+
+                        <div className="flex flex-col items-end gap-2">
+                            <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-widest text-text-tertiary">
+                                <span>Progress</span>
+                                <span className="text-accent">{currentCardIndex + 1} / {studyQueue.length}</span>
+                            </div>
+                            <div className="w-48 h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/5">
+                                <motion.div
+                                    className="h-full bg-accent"
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${progress}%` }}
+                                    transition={{ duration: 0.5, ease: "easeOut" }}
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -272,7 +351,7 @@ export function FlashcardsPage() {
 
     if (view === 'preview' && selectedDeck) {
         return (
-            <div className="flex-1 w-full bg-bg-base flex flex-col">
+            <div className="flex-1 w-full bg-bg-primary flex flex-col">
                 <header className="p-8 border-b border-border bg-bg-surface">
                     <button
                         onClick={() => setView('library')}
@@ -378,182 +457,92 @@ export function FlashcardsPage() {
     }
 
     return (
-        <div className="flex-1 w-full h-full p-6 flex flex-col gap-6 overflow-y-auto custom-scrollbar bg-bg-primary">
-            {/* Header */}
-            <motion.div
-                className="flex items-center justify-between"
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-            >
-                <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-accent/10 rounded-xl">
-                        <Brain size={24} className="text-accent" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold text-text-primary">Flashcard Library</h1>
-                        <p className="text-xs text-text-tertiary flex items-center gap-2 mt-0.5">
-                            <span>Knowledge Retention</span>
-                            <span className="w-1 h-1 rounded-full bg-text-tertiary/30" />
-                            <span>{decks.length} Decks Active</span>
-                        </p>
-                    </div>
-                </div>
-
-                <div className="flex bg-bg-surface/50 border border-border rounded-xl px-4 py-2.5 gap-6">
-                    <div className="flex items-center gap-2">
-                        <Flame className="text-orange-500" size={16} />
-                        <span className="text-sm font-bold text-text-primary">12 Day Streak</span>
-                    </div>
-                    <div className="w-px h-4 bg-border self-center" />
-                    <div className="flex items-center gap-2">
-                        <Trophy className="text-yellow-500" size={16} />
-                        <span className="text-sm font-bold text-text-primary">248 Cards</span>
-                    </div>
-                </div>
-            </motion.div>
-
-            {/* Top Bento Stats Grid */}
-            <motion.div
-                className="grid grid-cols-1 md:grid-cols-4 gap-4"
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-            >
-                {/* 1. Mastery Heatmap - Large Span */}
+        <div className="flex-1 w-full h-full flex flex-col bg-bg-primary overflow-y-auto custom-scrollbar">
+            {/* Document-style Header */}
+            <div className="pt-8 pb-6 px-10 border-b border-border">
                 <motion.div
-                    className="md:col-span-2 bg-bg-surface border border-border p-5 rounded-2xl flex flex-col gap-4"
-                    variants={itemVariants}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="max-w-4xl mx-auto w-full"
                 >
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-xs font-bold uppercase tracking-widest text-text-secondary">Mastery Heatmap</h3>
-                        <div className="flex items-center gap-1.5 text-[10px] text-text-tertiary uppercase font-medium">
-                            <span>Less</span>
-                            <div className="flex gap-1">
-                                {[0.1, 0.3, 0.5, 0.7, 1].map((op, i) => (
-                                    <div key={i} className="w-2 h-2 rounded-sm bg-accent" style={{ opacity: op }} />
-                                ))}
-                            </div>
-                            <span>More</span>
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-12 gap-1.5 flex-1">
-                        {Array.from({ length: 48 }).map((_, i) => (
-                            <div
-                                key={i}
-                                className={cn(
-                                    "aspect-square rounded-[3px] border border-white/[0.02]",
-                                    i % 7 === 0 ? "bg-accent/60" :
-                                        i % 5 === 0 ? "bg-accent/40" :
-                                            i % 3 === 0 ? "bg-accent/20" : "bg-bg-primary/50"
-                                )}
-                            />
-                        ))}
-                    </div>
-                </motion.div>
-
-                {/* 2. Daily Goal */}
-                <motion.div
-                    className="md:col-span-1 bg-bg-surface border border-border p-5 rounded-2xl flex flex-col justify-between"
-                    variants={itemVariants}
-                >
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-xs font-bold uppercase tracking-widest text-text-secondary">Daily Goal</h3>
-                        <Activity size={16} className="text-accent" />
-                    </div>
-                    <div className="mt-4">
-                        <div className="flex items-end justify-between mb-2">
-                            <span className="text-2xl font-bold text-text-primary">42 / 50</span>
-                            <span className="text-emerald-400 font-bold text-xs">84%</span>
-                        </div>
-                        <div className="w-full h-2 bg-bg-primary rounded-full overflow-hidden">
-                            <motion.div
-                                className="h-full bg-accent pr-2"
-                                initial={{ width: 0 }}
-                                animate={{ width: '84%' }}
-                                transition={{ duration: 1, delay: 0.5 }}
-                            />
-                        </div>
-                    </div>
-                    <p className="mt-4 text-[10px] text-text-tertiary flex items-center gap-1.5">
-                        <Clock size={12} />
-                        Estimated 5 mins remaining
-                    </p>
-                </motion.div>
-
-                {/* 3. Smart Suggestion */}
-                <motion.button
-                    className="md:col-span-1 bg-accent p-5 rounded-2xl flex flex-col justify-between group hover:scale-[1.02] active:scale-[0.98] transition-all text-black text-left"
-                    variants={itemVariants}
-                    onClick={() => decks[0] && startStudy(decks[0])}
-                >
-                    <Sparkles size={20} className="text-black/40" />
-                    <div className="mt-4">
-                        <h4 className="font-bold text-sm mb-1">Smart Pick</h4>
-                        <p className="text-[11px] leading-relaxed font-medium text-black/70">
-                            {decks[0] ? `Ready to review "${decks[0].title}"? It's been a while.` : "Start by adding cards!"}
-                        </p>
-                    </div>
-                    <div className="mt-4 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider">
-                        <span>Begin Now</span>
-                        <ArrowRight size={12} />
-                    </div>
-                </motion.button>
-            </motion.div>
-
-            {/* Library Grid Area */}
-            <div className="flex flex-col gap-4 mt-2">
-                <div className="flex items-center justify-between px-1">
-                    <h2 className="text-lg font-bold text-text-primary">All Decks</h2>
-                    <button className="text-[10px] font-bold uppercase tracking-[0.1em] text-accent hover:underline">Manage All</button>
-                </div>
-
-                <motion.div
-                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
-                    variants={containerVariants}
-                    initial="hidden"
-                    animate="visible"
-                >
-                    {decks.map((deck) => (
-                        <motion.button
-                            key={deck.id}
-                            variants={itemVariants}
-                            whileHover={{ y: -2 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => openPreview(deck.id)}
-                            className="bg-bg-surface border border-border p-5 rounded-2xl text-left hover:border-accent/40 transition-all group flex flex-col justify-between min-h-[140px]"
-                        >
-                            <div className="flex items-start justify-between">
-                                <div className={cn(
-                                    "p-2.5 rounded-xl border border-border bg-bg-primary/50 group-hover:bg-accent/5 group-hover:border-accent/20 transition-colors",
-                                    deck.id === 'all' ? 'text-purple-400' : 'text-text-secondary group-hover:text-accent'
-                                )}>
-                                    {deck.id === 'all' ? <Layers size={20} /> : <BookOpen size={20} />}
-                                </div>
-                                <span className="text-[10px] font-bold text-text-tertiary bg-bg-primary/50 px-2 py-1 rounded-md border border-border">
-                                    {deck.count} CARDS
+                    <div className="flex items-start justify-between mb-2">
+                        <div>
+                            <h1 className="text-3xl font-bold text-text-primary tracking-tight mb-3">Flashcard Library</h1>
+                            <div className="flex items-center gap-6 text-sm text-text-tertiary">
+                                <span className="flex items-center gap-2">
+                                    <Layers size={14} />
+                                    {decks.filter(d => d.id !== 'all').length} Decks
+                                </span>
+                                <span className="flex items-center gap-2">
+                                    <Trophy size={14} />
+                                    {decks.find(d => d.id === 'all')?.count || 0} Cards
+                                </span>
+                                <span className="flex items-center gap-2 text-accent">
+                                    <Flame size={14} />
+                                    {streak} Day Streak
                                 </span>
                             </div>
-
-                            <div className="mt-6">
-                                <h3 className="font-bold text-text-primary text-base leading-tight group-hover:text-accent transition-colors">
-                                    {deck.title}
-                                </h3>
-                                <div className="mt-3 flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-text-tertiary group-hover:text-accent group-hover:translate-x-1 transition-all">
-                                    <span>Review Now</span>
-                                    <ArrowRight size={10} />
-                                </div>
-                            </div>
-                        </motion.button>
-                    ))}
-
-                    {decks.length === 0 && (
-                        <div className="col-span-full py-12 border-2 border-dashed border-border rounded-2xl flex flex-col items-center justify-center text-center opacity-40">
-                            <Brain size={48} className="mb-4" />
-                            <p className="text-sm font-medium">Your library is currently empty.</p>
                         </div>
-                    )}
+                    </div>
                 </motion.div>
+            </div>
+
+            {/* Main Content - List View */}
+            <div className="flex-1 px-10">
+                <div className="max-w-4xl mx-auto w-full py-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-sm font-bold uppercase tracking-widest text-text-tertiary">Your Collections</h2>
+                        <button className="text-[10px] font-bold text-text-tertiary hover:text-text-primary transition-colors">SORT BY: RECENT</button>
+                    </div>
+
+                    <div className="flex flex-col">
+                        <AnimatePresence>
+                            {decks.map((deck, idx) => (
+                                <motion.div
+                                    key={deck.id}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: idx * 0.05 }}
+                                    onClick={() => openPreview(deck.id)}
+                                    className="group flex items-center justify-between py-4 border-b border-border/50 cursor-pointer hover:bg-bg-surface/30 -mx-4 px-4 rounded-lg transition-colors"
+                                >
+                                    <div className="flex items-center gap-5">
+                                        <div className={cn(
+                                            "p-3 rounded-md bg-transparent border border-border group-hover:border-accent/50 transition-colors text-text-tertiary group-hover:text-accent",
+                                            deck.id === 'all' && "text-purple-400 group-hover:text-purple-400 group-hover:border-purple-400/50"
+                                        )}>
+                                            {deck.id === 'all' ? <Layers size={20} /> : <BookOpen size={20} />}
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-medium text-text-primary group-hover:text-accent transition-colors">
+                                                {deck.title}
+                                            </h3>
+                                            <div className="flex items-center gap-3 mt-1 text-xs text-text-tertiary">
+                                                <span>{deck.count} cards</span>
+                                                {deck.id === 'all' && <span className="text-purple-400/80">• Smart Collection</span>}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-6 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                                        <div className="flex flex-col items-end gap-1">
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary">Last Studied</span>
+                                            <span className="text-xs font-mono text-text-primary">2h ago</span>
+                                        </div>
+                                        <ChevronRight size={16} className="text-text-tertiary" />
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </AnimatePresence>
+
+                        {decks.length === 0 && (
+                            <div className="py-20 text-center opacity-40">
+                                <p className="text-sm font-medium text-text-tertiary">No decks found. Create a note to generate flashcards.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
         </div>
     );

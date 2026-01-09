@@ -41,6 +41,7 @@ export interface ComponentConfig {
 export interface ComponentScore {
     name: string;
     score: number;
+    max_score?: number;
 }
 
 export interface SemesterGpa {
@@ -53,7 +54,6 @@ export interface SemesterGpa {
 export interface GradeSummary {
     cgpa: number;
     total_credits: number;
-    points_secured: number;
     semester_gpas: SemesterGpa[];
 }
 

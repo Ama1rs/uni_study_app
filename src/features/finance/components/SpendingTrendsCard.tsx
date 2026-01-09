@@ -1,14 +1,11 @@
-import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Plus, PieChart } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { FinanceBudget, FinanceSummary } from '@/lib/financeService';
-import { SpendingItem } from './SpendingItem';
+import { Maximize2, Filter } from 'lucide-react';
 
 interface SpendingTrendsCardProps {
     budgets: FinanceBudget[];
     summary: FinanceSummary | null;
-    isCollapsed: boolean;
-    setIsCollapsed: (v: boolean) => void;
     onViewHistory: () => void;
     onViewFlow: () => void;
     onSelectBudget: (budget: FinanceBudget | null) => void;
@@ -16,94 +13,94 @@ interface SpendingTrendsCardProps {
 }
 
 export function SpendingTrendsCard({
-    budgets,
     summary,
-    isCollapsed,
-    setIsCollapsed,
-    onViewHistory,
-    onViewFlow,
-    onSelectBudget,
     itemVariants
 }: SpendingTrendsCardProps) {
+    // Generate some mock history data if none exists, or use the real history
+    const historyData = summary?.net_worth_history?.length
+        ? summary.net_worth_history.map((val, i) => ({
+            date: `D${i + 1}`,
+            value: val
+        }))
+        : Array.from({ length: 12 }, (_, i) => ({
+            date: `M${i + 1}`,
+            value: 10000 + Math.random() * 5000 + (i * 1000)
+        }));
+
     return (
         <motion.div
-            className={cn(
-                "md:col-span-2 glass-card p-6 rounded-2xl flex flex-col transition-all duration-500",
-                isCollapsed ? "md:row-span-1" : "md:row-span-2"
-            )}
             variants={itemVariants}
+            className="flex flex-col h-full bg-bg-surface border border-border/10 rounded-sm"
         >
-            <div className="flex justify-between items-center mb-6">
-                <h3 className="text-sm font-mono text-text-secondary uppercase tracking-widest">Top Spending</h3>
+            <div className="flex items-center justify-between p-3 bg-bg-card/30">
                 <div className="flex items-center gap-2">
-                    <button
-                        onClick={onViewHistory}
-                        className="text-[10px] text-accent font-mono hover:underline"
-                    >
-                        View History
+                    <div className="w-2 h-2 rounded-full bg-blue-500" />
+                    <h3 className="text-xs font-mono font-bold text-text-secondary uppercase tracking-wider">Balance History</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button className="p-1 hover:bg-bg-hover rounded transition-colors text-text-tertiary hover:text-text-primary">
+                        <Filter size={14} />
                     </button>
-                    <button
-                        onClick={onViewFlow}
-                        className="p-1 hover:bg-white/5 rounded-md transition-colors"
-                        title="Visual Flow"
-                    >
-                        <PieChart
-                            size={16}
-                            className="text-accent"
-                        />
-                    </button>
-                    <button
-                        onClick={() => setIsCollapsed(!isCollapsed)}
-                        className="p-1 hover:bg-white/5 rounded-md transition-colors"
-                    >
-                        <ChevronDown
-                            size={16}
-                            className={cn("text-text-tertiary transition-transform duration-300", isCollapsed && "-rotate-90")}
-                        />
+                    <button className="p-1 hover:bg-bg-hover rounded transition-colors text-text-tertiary hover:text-text-primary">
+                        <Maximize2 size={14} />
                     </button>
                 </div>
             </div>
 
-            <AnimatePresence>
-                {!isCollapsed && (
-                    <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden flex flex-col flex-1"
-                    >
-                        <div className="space-y-1">
-                            {budgets.map((budget) => (
-                                <SpendingItem
-                                    key={budget.id}
-                                    category={budget.category}
-                                    amount={`$${budget.spent_amount.toLocaleString()}`}
-                                    trend={budget.spent_amount > (budget.limit_amount * 0.8) ? 'up' : 'static'}
-                                    onClick={() => onSelectBudget(budget)}
-                                />
-                            ))}
-                            <button
-                                onClick={() => onSelectBudget(null)}
-                                className="w-full p-2 mt-2 rounded-lg border border-dashed border-border hover:border-accent/50 hover:bg-accent/5 transition-all text-text-tertiary text-[10px] font-mono uppercase flex items-center justify-center gap-2"
-                            >
-                                <Plus size={12} />
-                                Add Budget
-                            </button>
-                        </div>
+            <div className="flex-1 p-4 min-h-[250px] relative">
+                <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={historyData}>
+                        <defs>
+                            <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} horizontal={false} strokeOpacity={0} />
+                        <XAxis
+                            dataKey="date"
+                            stroke="var(--text-tertiary)"
+                            fontSize={10}
+                            tickLine={false}
+                            axisLine={false}
+                            dy={10}
+                        />
+                        <YAxis
+                            stroke="var(--text-tertiary)"
+                            fontSize={10}
+                            tickLine={false}
+                            axisLine={false}
+                            tickFormatter={(value) => `$${value / 1000}k`}
+                            dx={-10}
+                        />
+                        <Tooltip
+                            contentStyle={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)', fontSize: '12px' }}
+                            itemStyle={{ color: '#3b82f6' }}
+                            formatter={(value: number) => [`$${value.toLocaleString()}`, 'Balance']}
+                        />
+                        <Area
+                            type="monotone"
+                            dataKey="value"
+                            stroke="#3b82f6"
+                            fillOpacity={1}
+                            fill="url(#colorValue)"
+                            strokeWidth={2}
+                        />
+                    </AreaChart>
+                </ResponsiveContainer>
 
-                        <div className="mt-auto pt-6">
-                            <div className="p-4 rounded-xl bg-bg-primary/50 border border-border">
-                                <h4 className="text-[10px] font-mono text-text-tertiary uppercase mb-2">Smart Suggestion</h4>
-                                <p className="text-xs text-text-secondary leading-relaxed">
-                                    {summary && summary.monthly_spent > summary.monthly_income * 0.7
-                                        ? "You've spent over 70% of your income this month. Consider reducing leisure expenses."
-                                        : "Your spending is within healthy limits. You're doing great!"}
-                                </p>
-                            </div>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                {/* Time range selector overlay */}
+                <div className="absolute top-4 right-4 flex bg-bg-card/50 border border-border/10 rounded-sm overflow-hidden">
+                    {['1D', '1W', '1M', '3M', '1Y', 'ALL'].map((range, i) => (
+                        <button
+                            key={range}
+                            className={`px-2 py-1 text-[9px] font-mono ${i === 2 ? 'bg-bg-hover text-text-primary' : 'text-text-tertiary hover:text-text-secondary'}`}
+                        >
+                            {range}
+                        </button>
+                    ))}
+                </div>
+            </div>
         </motion.div>
     );
 }

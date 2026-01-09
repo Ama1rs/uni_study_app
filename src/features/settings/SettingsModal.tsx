@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { X, Palette, Bot, Database, User } from 'lucide-react';
+import { X, Palette, Bot, Database, User, Share2 } from 'lucide-react';
 import { ThemeCustomizer } from './ThemeCustomizer';
+import { GraphSettings } from './GraphSettings';
 import { AISettings } from '../ai/AISettings';
 import { DataSettings } from './DataSettings';
 import { ProfileSettings } from './ProfileSettings';
 import { cn } from '../../lib/utils';
 
-type SettingsTab = 'appearance' | 'ai' | 'data' | 'profile';
+type SettingsTab = 'appearance' | 'graph' | 'ai' | 'data' | 'profile';
 
 export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
     const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
@@ -15,6 +16,7 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
 
     const tabs = [
         { id: 'appearance', label: 'Appearance', icon: Palette },
+        { id: 'graph', label: 'Graph View', icon: Share2 },
         { id: 'ai', label: 'AI & Intelligence', icon: Bot },
         { id: 'data', label: 'Data & Storage', icon: Database },
         { id: 'profile', label: 'Profile', icon: User },
@@ -76,6 +78,7 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                     {/* Scrollable Content */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
                         {activeTab === 'appearance' && <ThemeCustomizer />}
+                        {activeTab === 'graph' && <GraphSettings />}
                         {activeTab === 'ai' && <AISettings />}
                         {activeTab === 'data' && <DataSettings />}
                         {activeTab === 'profile' && <ProfileSettings />}

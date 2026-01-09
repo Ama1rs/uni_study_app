@@ -21,11 +21,11 @@ export function SearchWithTags({
         const lastCommaIndex = searchQuery.lastIndexOf(',');
         const lastSpaceIndex = searchQuery.lastIndexOf(' ');
         const lastDelimiterIndex = Math.max(lastCommaIndex, lastSpaceIndex);
-        
+
         if (lastDelimiterIndex === -1) {
             return searchQuery.trim();
         }
-        
+
         return searchQuery.slice(lastDelimiterIndex + 1).trim();
     };
 
@@ -34,7 +34,7 @@ export function SearchWithTags({
     // Filter tags based on current search term
     const suggestions = useMemo(() => {
         if (!currentTerm) return availableTags.slice(0, 10); // Show first 10 if no filter
-        
+
         const lowerTerm = currentTerm.toLowerCase();
         return availableTags
             .filter(tag => tag.toLowerCase().includes(lowerTerm))
@@ -64,7 +64,7 @@ export function SearchWithTags({
         switch (e.key) {
             case 'ArrowDown':
                 e.preventDefault();
-                setSelectedIndex(prev => 
+                setSelectedIndex(prev =>
                     prev < suggestions.length - 1 ? prev + 1 : prev
                 );
                 break;
@@ -121,16 +121,15 @@ export function SearchWithTags({
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ duration: 0.15 }}
                     >
-                        {suggestions.map((tag, index) => (
+                        {suggestions.filter(t => t && t.trim()).map((tag, index) => (
                             <motion.button
-                                key={tag}
+                                key={`${tag}-${index}`}
                                 onClick={() => handleTagSelect(tag)}
                                 onMouseEnter={() => setSelectedIndex(index)}
-                                className={`w-full px-4 py-2.5 text-left flex items-center gap-2 transition-colors ${
-                                    selectedIndex === index
+                                className={`w-full px-4 py-2.5 text-left flex items-center gap-2 transition-colors ${selectedIndex === index
                                         ? 'bg-accent/20 text-accent'
                                         : 'hover:bg-bg-hover text-text-primary'
-                                }`}
+                                    }`}
                                 whileHover={{ x: 4 }}
                             >
                                 <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-accent/10 text-accent">

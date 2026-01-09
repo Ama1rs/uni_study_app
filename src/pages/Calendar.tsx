@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { Button } from '../components/ui/Button';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 interface PlannerEvent {
     id: number;
@@ -24,6 +26,12 @@ export function Calendar() {
     const [newEventDesc, setNewEventDesc] = useState('');
     const [newEventTime, setNewEventTime] = useState('09:00');
     const [error, setError] = useState<string | null>(null);
+    const [confirmState, setConfirmState] = useState<{
+        isOpen: boolean;
+        title: string;
+        description: string;
+        action: () => void;
+    }>({ isOpen: false, title: '', description: '', action: () => { } });
 
     useEffect(() => {
         loadEvents();
@@ -79,11 +87,20 @@ export function Calendar() {
 
     async function deleteEvent(id: number, e: React.MouseEvent) {
         e.stopPropagation();
-        if (!confirm('Delete this event?')) return;
-        try {
-            await invoke('delete_planner_event', { id });
-            loadEvents();
-        } catch (e) { console.error(e); }
+        setConfirmState({
+            isOpen: true,
+            title: 'Delete Event',
+            description: 'Are you sure you want to delete this event?',
+            action: async () => {
+                try {
+                    await invoke('delete_planner_event', { id });
+                    loadEvents();
+                    setConfirmState(prev => ({ ...prev, isOpen: false }));
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+        });
     }
 
     const daysInMonth = (date: Date) => {
@@ -125,7 +142,7 @@ export function Calendar() {
 
         // Empty cells for previous month
         for (let i = 0; i < startDay; i++) {
-            calendarDays.push(<div key={`empty-${i}`} className="h-24 md:h-32 border-b border-r border-white/5" />);
+            calendarDays.push(<div key={`empty-${i}`} className="border-b border-r border-border" />);
         }
 
         // Days of current month
@@ -147,22 +164,21 @@ export function Calendar() {
                     key={i}
                     onClick={() => setSelectedDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), i))}
                     className={cn(
-                        "h-24 md:h-32 border-b border-r border-white/5 p-2 cursor-pointer transition-all relative group hover:bg-white/5",
-                        isSelected ? "bg-white/5" : ""
+                        "border-b border-r border-border p-3 cursor-pointer transition-all relative group hover:bg-bg-hover min-h-[48px]",
+                        isSelected ? "bg-bg-hover ring-2 ring-accent/30" : ""
                     )}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${monthNames[currentDate.getMonth()]} ${i}, ${currentDate.getFullYear()}. ${dayEvents.length} events.`}
                 >
                     <div className="flex justify-between items-start">
                         <span
                             className={cn(
-                                "w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium",
-                                isToday ? "text-white" : ""
+                                "text-sm font-mono font-medium",
+                                isToday ? "text-accent font-bold" : "text-text-secondary"
                             )}
-                            style={{
-                                backgroundColor: isToday ? 'var(--accent)' : 'transparent',
-                                color: isToday ? '#ffffff' : 'var(--text-primary)'
-                            }}
                         >
-                            {i}
+                            {i} {isToday && '•'}
                         </span>
                         <button
                             onClick={(e) => {
@@ -170,22 +186,24 @@ export function Calendar() {
                                 setSelectedDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), i));
                                 setShowAddEvent(true);
                             }}
-                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/10 rounded"
+                            className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-bg-active rounded-sm text-text-tertiary touch-target"
+                            aria-label="Add event"
                         >
-                            <Plus size={14} className="text-gray-400" />
+                            <Plus size={14} />
                         </button>
                     </div>
 
                     {/* Events List */}
-                    <div className="mt-1 space-y-1 overflow-y-auto max-h-[calc(100%-2rem)]">
+                    <div className="mt-2 space-y-1 overflow-y-auto max-h-[calc(100%-2rem)] custom-scrollbar">
                         {dayEvents.map(event => (
-                            <div key={event.id} className="text-xs p-1 rounded bg-blue-500/20 text-blue-200 truncate group/event relative">
-                                {event.title}
+                            <div key={event.id} className="text-xs pl-2 pr-1 py-1 border-l-2 border-accent text-text-primary bg-accent/5 truncate group/event relative hover:bg-accent/10 rounded-sm" role="listitem">
+                                <span className="font-medium">{event.title}</span>
                                 <button
                                     onClick={(e) => deleteEvent(event.id, e)}
-                                    className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover/event:block text-red-400 hover:text-red-300"
+                                    className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover/event:block text-text-tertiary hover:text-red-400 p-1 touch-target"
+                                    aria-label={`Delete event: ${event.title}`}
                                 >
-                                    <Trash2 size={10} />
+                                    <Trash2 size={12} />
                                 </button>
                             </div>
                         ))}
@@ -207,15 +225,17 @@ export function Calendar() {
                 <div className="flex gap-2">
                     <button
                         onClick={prevMonth}
-                        className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                        className="p-2 rounded-lg hover:bg-bg-hover transition-colors touch-target"
                         style={{ color: 'var(--text-secondary)' }}
+                        aria-label="Previous month"
                     >
                         <ChevronLeft size={20} />
                     </button>
                     <button
                         onClick={nextMonth}
-                        className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                        className="p-2 rounded-lg hover:bg-bg-hover transition-colors touch-target"
                         style={{ color: 'var(--text-secondary)' }}
+                        aria-label="Next month"
                     >
                         <ChevronRight size={20} />
                     </button>
@@ -232,7 +252,7 @@ export function Calendar() {
             </div>
 
             {/* Calendar Grid */}
-            <div className="grid grid-cols-7 border-l border-t border-white/5 flex-1 bg-black/20 rounded-bl-xl rounded-br-xl overflow-hidden">
+            <div className="grid grid-cols-7 border-t border-l border-border flex-1 bg-bg-primary overflow-hidden" style={{ gridAutoRows: '1fr' }}>
                 {renderCalendarDays()}
             </div>
 
@@ -246,7 +266,7 @@ export function Calendar() {
 
                         {error && (
                             <div className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/50 text-red-200 text-sm">
-                                {error === 'No active user session found' 
+                                {error === 'No active user session found'
                                     ? 'You must be logged in to create events. Please log in first.'
                                     : error}
                             </div>
@@ -278,12 +298,33 @@ export function Calendar() {
                         </div>
 
                         <div className="flex justify-end gap-2 mt-6">
-                            <button onClick={() => { setShowAddEvent(false); setError(null); }} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-secondary)' }}>Cancel</button>
-                            <button onClick={addEvent} className="px-4 py-2 rounded-lg text-sm text-white" style={{ backgroundColor: 'var(--accent)' }}>Create Event</button>
+                            <Button variant="ghost" size="compact" onClick={() => { setShowAddEvent(false); setError(null); }}>Cancel</Button>
+                            <Button variant="primary" size="compact" onClick={addEvent}>Create Event</Button>
                         </div>
                     </div>
                 </div>
             )}
-        </div>
+
+            {/* Floating Action Button for New Event */}
+            <button
+                onClick={() => {
+                    setSelectedDate(new Date());
+                    setShowAddEvent(true);
+                }}
+                className="fixed bottom-8 right-8 w-14 h-14 bg-accent hover:bg-accent-hover text-black rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 focus-visible-ring z-50"
+                aria-label="Create new event"
+            >
+                <Plus size={24} strokeWidth={2.5} />
+            </button>
+            <ConfirmDialog
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                description={confirmState.description}
+                onConfirm={confirmState.action}
+                onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+                danger
+                confirmText="Delete"
+            />
+        </div >
     );
 }
