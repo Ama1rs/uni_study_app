@@ -1,7 +1,9 @@
 use rusqlite::{params, Connection, Result};
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct FinanceTransaction {
     pub id: Option<i64>,
     pub label: String,
@@ -11,7 +13,8 @@ pub struct FinanceTransaction {
     pub is_positive: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct FinanceBudget {
     pub id: Option<i64>,
     pub category: String,
@@ -20,7 +23,8 @@ pub struct FinanceBudget {
     pub period: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct SavingsGoal {
     pub id: Option<i64>,
     pub name: String,
@@ -29,7 +33,8 @@ pub struct SavingsGoal {
     pub deadline: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct FinanceAsset {
     pub id: Option<i64>,
     pub label: String,
@@ -38,7 +43,8 @@ pub struct FinanceAsset {
     pub color: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct FinanceSummary {
     pub total_net_worth: f64,
     pub monthly_income: f64,
@@ -47,7 +53,8 @@ pub struct FinanceSummary {
     pub net_worth_history: Vec<f64>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ExpenseFlow {
     pub source: String,
     pub target: String,

@@ -238,7 +238,7 @@ export function FlashcardsPage() {
 
 
                 {/* Card Stage */}
-                <div className="flex-1 flex items-center justify-center p-8 overflow-visible">
+                <div className="flex-1 flex items-center justify-center overflow-visible">
                     <div className="relative w-full max-w-2xl h-[450px] cursor-pointer" onClick={() => setIsFlipped(!isFlipped)}>
                         <AnimatePresence initial={false} mode="wait">
                             {!isFlipped ? (

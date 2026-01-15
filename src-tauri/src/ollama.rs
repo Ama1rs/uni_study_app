@@ -1,5 +1,6 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use tracing;
 
 /// Ollama API client for local LLM interactions
 pub struct OllamaClient {
@@ -67,7 +68,7 @@ impl OllamaClient {
         match self.client.get(&url).send().await {
             Ok(response) => Ok(response.status().is_success()),
             Err(e) => {
-                eprintln!("Ollama connection check failed: {}", e);
+                tracing::warn!("Ollama connection check failed: {}", e);
                 Ok(false)
             }
         }

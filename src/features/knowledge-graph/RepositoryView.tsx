@@ -24,7 +24,7 @@ import { RepositorySettingsModal } from './modals/RepositorySettingsModal';
 
 // Types and Utils
 import { LinkV2, LinkType } from '../../types/node-system';
-import { GraphLegend, RESOURCE_COLORS } from './components/GraphLegend';
+import { GraphLegend } from './components/GraphLegend';
 import { Button } from '../../components/ui/Button';
 import { RefreshCw } from 'lucide-react';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
@@ -280,9 +280,6 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
 
     const graphData = useMemo(() => {
         const nodes = graphFilteredResources.map(r => {
-            const raw = r.path?.replace(/\\/g, '/');
-            const imgUrl = (r.type === 'image' && raw) ? convertFileSrc(raw) : undefined;
-
             // Generate distinct colors based on type
             let color = '#ffffff';
             switch (r.type.toLowerCase()) {

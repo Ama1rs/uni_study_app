@@ -1,14 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
     ZoomIn,
     ZoomOut,
     RotateCcw,
     RotateCw,
-    Maximize,
-    Minimize,
-    Move,
-    Download,
     RefreshCw
 } from 'lucide-react';
 
@@ -21,10 +17,8 @@ interface ImageViewerProps {
 export function ImageViewer({ src, alt, title }: ImageViewerProps) {
     const [scale, setScale] = useState(1);
     const [rotation, setRotation] = useState(0);
-    const [isDragging, setIsDragging] = useState(false);
 
     const containerRef = useRef<HTMLDivElement>(null);
-    const constraintsRef = useRef<HTMLDivElement>(null);
 
     // Reset view
     const handleReset = () => {
@@ -77,8 +71,6 @@ export function ImageViewer({ src, alt, title }: ImageViewerProps) {
                     drag
                     dragConstraints={containerRef}
                     dragElastic={0.1}
-                    onDragStart={() => setIsDragging(true)}
-                    onDragEnd={() => setIsDragging(false)}
                     style={{
                         scale,
                         rotate: rotation,

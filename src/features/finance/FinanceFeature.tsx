@@ -1,5 +1,5 @@
 import { Variants, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Filter, Maximize2, RotateCcw, TrendingUp, ChevronRight, Activity, DollarSign, Clock } from 'lucide-react';
+import { Plus, Search, Clock } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
     financeService,
@@ -47,6 +47,9 @@ export function FinanceFeature() {
     const [assets, setAssets] = useState<FinanceAsset[]>([]);
     const [flows, setFlows] = useState<any[]>([]);
 
+    // AI Thinking State
+    const [isThinking, setIsThinking] = useState(false);
+
     // Modal states
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isAdjustGoalModalOpen, setIsAdjustGoalModalOpen] = useState(false);
@@ -61,6 +64,7 @@ export function FinanceFeature() {
     const [searchQuery, setSearchQuery] = useState('');
 
     const fetchData = async () => {
+        setIsThinking(true);
         try {
             const [s, t, b, g, a, f] = await Promise.all([
                 financeService.getSummary(),
@@ -78,6 +82,8 @@ export function FinanceFeature() {
             setFlows(f);
         } catch (error) {
             console.error('Failed to fetch finance data:', error);
+        } finally {
+            setIsThinking(false);
         }
     };
 
@@ -93,7 +99,10 @@ export function FinanceFeature() {
     const totalAssetsValue = assets.reduce((acc, curr) => acc + curr.amount, 0);
 
     return (
-        <div className="w-full h-full flex flex-col bg-bg-primary overflow-hidden font-sans">
+        <div 
+            className="w-full h-full flex flex-col bg-bg-primary overflow-hidden font-sans"
+            data-state={isThinking ? "thinking" : "idle"}
+        >
             {/* Header Ticker */}
             <SummaryHero
                 summary={summary}
@@ -113,16 +122,27 @@ export function FinanceFeature() {
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="w-full bg-bg-card/50 border border-border/10 rounded-sm pl-9 pr-4 py-1.5 text-xs text-text-primary outline-none focus:border-accent/60 transition-colors font-mono placeholder:text-text-muted uppercase"
+                                style={{ borderRadius: 'var(--ui-radius-md)', boxShadow: 'var(--elevation-1)' }}
                             />
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        {/* AI Thinking Vessel */}
+                        <div 
+                            className={`w-8 h-8 rounded-full border-2 border-accent/20 flex items-center justify-center transition-all duration-300 ${isThinking ? 'animate-kinetic-motion bg-accent/10' : ''}`}
+                            style={{ borderRadius: 'var(--ui-radius-lg)' }}
+                        >
+                            {isThinking && (
+                                <div className="w-2 h-2 bg-accent rounded-full animate-pulse"></div>
+                            )}
+                        </div>
                         <button className="p-1.5 hover:bg-bg-hover rounded transition-colors text-text-tertiary">
                             <Clock size={16} />
                         </button>
                         <button
                             onClick={() => setIsAddModalOpen(true)}
                             className="bg-accent text-white hover:opacity-90 px-3 py-1.5 rounded-sm font-mono font-bold text-xs flex items-center gap-2 transition-colors uppercase tracking-wider shadow-lg shadow-accent/20"
+                            style={{ borderRadius: 'var(--ui-radius-md)', boxShadow: 'var(--elevation-1)' }}
                         >
                             <Plus size={14} />
                             New Transaction

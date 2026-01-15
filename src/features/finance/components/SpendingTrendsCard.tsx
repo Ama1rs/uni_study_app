@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { FinanceBudget, FinanceSummary } from '@/lib/financeService';
 import { Maximize2, Filter } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 
 interface SpendingTrendsCardProps {
     budgets: FinanceBudget[];
@@ -16,6 +17,23 @@ export function SpendingTrendsCard({
     summary,
     itemVariants
 }: SpendingTrendsCardProps) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [isVisible, setIsVisible] = useState(false);
+
+    useEffect(() => {
+        if (!containerRef.current) return;
+
+        const observer = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const { width, height } = entry.contentRect;
+                setIsVisible(width > 0 && height > 0);
+            }
+        });
+
+        observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, []);
+
     // Generate some mock history data if none exists, or use the real history
     const historyData = summary?.net_worth_history?.length
         ? summary.net_worth_history.map((val, i) => ({
@@ -47,47 +65,49 @@ export function SpendingTrendsCard({
                 </div>
             </div>
 
-            <div className="flex-1 p-4 min-h-[250px] relative">
-                <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={historyData}>
-                        <defs>
-                            <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                            </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} horizontal={false} strokeOpacity={0} />
-                        <XAxis
-                            dataKey="date"
-                            stroke="var(--text-tertiary)"
-                            fontSize={10}
-                            tickLine={false}
-                            axisLine={false}
-                            dy={10}
-                        />
-                        <YAxis
-                            stroke="var(--text-tertiary)"
-                            fontSize={10}
-                            tickLine={false}
-                            axisLine={false}
-                            tickFormatter={(value) => `$${value / 1000}k`}
-                            dx={-10}
-                        />
-                        <Tooltip
-                            contentStyle={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)', fontSize: '12px' }}
-                            itemStyle={{ color: '#3b82f6' }}
-                            formatter={(value: number) => [`$${value.toLocaleString()}`, 'Balance']}
-                        />
-                        <Area
-                            type="monotone"
-                            dataKey="value"
-                            stroke="#3b82f6"
-                            fillOpacity={1}
-                            fill="url(#colorValue)"
-                            strokeWidth={2}
-                        />
-                    </AreaChart>
-                </ResponsiveContainer>
+            <div ref={containerRef} className="flex-1 p-4 min-h-[250px] relative">
+                {isVisible && (
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={historyData}>
+                            <defs>
+                                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} horizontal={false} strokeOpacity={0} />
+                            <XAxis
+                                dataKey="date"
+                                stroke="var(--text-tertiary)"
+                                fontSize={10}
+                                tickLine={false}
+                                axisLine={false}
+                                dy={10}
+                            />
+                            <YAxis
+                                stroke="var(--text-tertiary)"
+                                fontSize={10}
+                                tickLine={false}
+                                axisLine={false}
+                                tickFormatter={(value) => `$${value / 1000}k`}
+                                dx={-10}
+                            />
+                            <Tooltip
+                                contentStyle={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)', fontSize: '12px' }}
+                                itemStyle={{ color: '#3b82f6' }}
+                                formatter={(value: number) => [`$${value.toLocaleString()}`, 'Balance']}
+                            />
+                            <Area
+                                type="monotone"
+                                dataKey="value"
+                                stroke="#3b82f6"
+                                fillOpacity={1}
+                                fill="url(#colorValue)"
+                                strokeWidth={2}
+                            />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                )}
 
                 {/* Time range selector overlay */}
                 <div className="absolute top-4 right-4 flex bg-bg-card/50 border border-border/10 rounded-sm overflow-hidden">

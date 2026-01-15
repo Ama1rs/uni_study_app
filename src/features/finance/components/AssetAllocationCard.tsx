@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Plus, MoreHorizontal } from 'lucide-react';
 import { FinanceAsset } from '@/lib/financeService';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { useState, useEffect, useRef } from 'react';
 
 interface AssetAllocationCardProps {
     assets: FinanceAsset[];
@@ -15,6 +16,23 @@ export function AssetAllocationCard({
     onSelectAsset,
     itemVariants
 }: AssetAllocationCardProps) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [isVisible, setIsVisible] = useState(false);
+
+    useEffect(() => {
+        if (!containerRef.current) return;
+
+        const observer = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const { width, height } = entry.contentRect;
+                setIsVisible(width > 0 && height > 0);
+            }
+        });
+
+        observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, []);
+
     const data = assets.map(asset => ({
         name: asset.label,
         value: asset.amount,
@@ -50,30 +68,32 @@ export function AssetAllocationCard({
 
             <div className="p-4 flex flex-col gap-6">
                 {/* CHART */}
-                <div className="h-[180px] w-full relative">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                            <Pie
-                                data={data}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={60}
-                                outerRadius={80}
-                                paddingAngle={2}
-                                dataKey="value"
-                                stroke="none"
-                            >
-                                {data.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.color} />
-                                ))}
-                            </Pie>
-                            <Tooltip
-                                contentStyle={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)', fontSize: '12px' }}
-                                itemStyle={{ color: 'var(--text-primary)' }}
-                                formatter={(value: number) => `$${value.toLocaleString()}`}
-                            />
-                        </PieChart>
-                    </ResponsiveContainer>
+                <div ref={containerRef} className="h-[180px] w-full relative">
+                    {isVisible && (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={data}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    paddingAngle={2}
+                                    dataKey="value"
+                                    stroke="none"
+                                >
+                                    {data.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <Tooltip
+                                    contentStyle={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)', fontSize: '12px' }}
+                                    itemStyle={{ color: 'var(--text-primary)' }}
+                                    formatter={(value: number) => `$${value.toLocaleString()}`}
+                                />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    )}
                     {/* Center Text */}
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
                         <span className="text-xs text-text-tertiary font-mono uppercase display-block">Total</span>

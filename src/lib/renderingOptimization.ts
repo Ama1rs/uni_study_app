@@ -55,17 +55,7 @@ export function initializeRenderingOptimizations(): void {
   // Enable GPU acceleration for all elements
   const style = document.createElement('style');
   style.textContent = `
-    * {
-      transform: translateZ(0);
-      backface-visibility: hidden;
-      -webkit-transform: translateZ(0);
-      -webkit-backface-visibility: hidden;
-    }
-    
-    /* Optimize animations and transitions */
-    *:not(input):not(textarea) {
-      will-change: transform, opacity;
-    }
+    /* GPU acceleration now handled selectively by components */
   `;
   document.head.appendChild(style);
 
@@ -147,3 +137,20 @@ export function disableFrameRateLimits(): void {
 
   console.log('✓ Frame rate limits removed - unlimited rendering');
 }
+
+// Limit GPU acceleration to animating/scrolling elements only
+const applyGPUAcceleration = (element: HTMLElement) => {
+    if (element.classList.contains('animating') || element.classList.contains('scrolling')) {
+        element.style.transform = 'translateZ(0)';
+        element.style.willChange = 'transform, opacity';
+    } else {
+        element.style.transform = '';
+        element.style.willChange = '';
+    }
+};
+
+// Select all elements that need GPU acceleration
+const elementsToOptimize = document.querySelectorAll('.animating, .scrolling');
+
+// Apply GPU acceleration selectively
+elementsToOptimize.forEach((element) => applyGPUAcceleration(element as HTMLElement));

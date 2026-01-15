@@ -19,6 +19,7 @@ import { PresentationEditor } from '@/features/editor/PresentationEditor';
 import { Library } from '@/pages/Library';
 import { useAIGeneration } from '@/contexts/AIGenerationContext';
 import { invoke } from '@tauri-apps/api/core';
+import { useMemo } from 'react';
 
 interface MainViewRouterProps {
     activeView: string;
@@ -102,20 +103,36 @@ export function MainViewRouter({
     };
 
     const handleExport = (format: string) => {
-        // TODO: Implement export functionality
-        console.log('Exporting as', format, state.generatedContent);
+        if (!state.generatedContent) return;
+
+        try {
+            const blob = new Blob([state.generatedContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const filename = `${state.generationData?.title || 'generated-content'}.${format === 'markdown' ? 'md' : format}`;
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error("Export failed:", e);
+        }
     };
 
-    const handleSave = async (repositoryId: string) => {
-        if (!state.generationData || !state.generatedContent) return;
+    const handleSave = async (repositoryId: string, content: string) => {
+        if (!state.generationData || !content) return;
 
         try {
             const type = activeView === 'ai-document-review' ? 'note' : 'ppt';
             const resource: any = await invoke('add_resource', {
-                repositoryId: parseInt(repositoryId),
-                title: state.generationData.title,
-                resourceType: type,
-                content: state.generatedContent
+                payload: {
+                    repositoryId: parseInt(repositoryId),
+                    title: state.generationData.title,
+                    resourceType: type,
+                    content: content
+                }
             });
             // Navigate to the created resource
             setActiveResource(resource);
@@ -125,11 +142,48 @@ export function MainViewRouter({
             console.error('Failed to save resource:', error);
         }
     };
-    if (activeView === "main") {
-        return (
-            <Layout>
-                {activeResource ? (
-                    activeResource.type === 'note' ? (
+
+    // list of views that should be preserved
+    const persistentViews = useMemo(() => [
+        { id: 'main', component: <HomeHub onOpenFile={(res: Resource) => setActiveResource(res)} /> },
+        { id: 'planner', component: <Planner /> },
+        { id: 'repository', component: <StudyRepository /> },
+        { id: 'library', component: <Library onOpenBook={(book) => { setActiveResource(book); setActiveView('main'); }} /> },
+        { id: 'focus', component: <FocusMode activeView={activeView} /> },
+        { id: 'grades', component: <Grades /> },
+        { id: 'finance', component: <Finance /> },
+        { id: 'flashcards', component: <FlashcardsPage /> },
+        { id: 'chat', component: <ChatLocalLLM /> },
+        {
+            id: 'studio', component: <StudioPage
+                onViewResource={(res: Resource) => {
+                    setActiveResource(res);
+                    setActiveView('main');
+                }}
+                setActiveView={setActiveView}
+            />
+        },
+    ], [setActiveResource, setActiveView]);
+
+    const isPersistentView = persistentViews.some(v => v.id === activeView);
+
+    return (
+        <Layout>
+            {/* Render persistent views with hidden class if not active */}
+            {persistentViews.map(view => (
+                <div
+                    key={view.id}
+                    className="w-full h-full overflow-hidden flex flex-col"
+                    style={{ display: activeView === view.id && !activeResource ? 'flex' : 'none' }}
+                >
+                    {view.component}
+                </div>
+            ))}
+
+            {/* Special handling for main view when activeResource is set (Notes/PPT/Preview) */}
+            {activeView === 'main' && activeResource && (
+                <div className="w-full h-full overflow-hidden">
+                    {activeResource.type === 'note' ? (
                         <NoteEditor
                             resource={activeResource}
                             repositoryId={activeResource.repository_id}
@@ -148,69 +202,38 @@ export function MainViewRouter({
                             resource={activeResource}
                             onClose={() => setActiveResource(null)}
                         />
-                    )
-                ) : (
-                    <HomeHub
-                        onOpenFile={(res: Resource) => setActiveResource(res)}
-                    />
-                )}
-            </Layout>
-        );
-    }
+                    )}
+                </div>
+            )}
 
-    if (activeView === "planner") return <Layout><Planner /></Layout>;
-    if (activeView === "repository") return <Layout><StudyRepository /></Layout>;
-    if (activeView === "library") return (
-        <Layout>
-            <Library
-                onOpenBook={(book) => {
-                    setActiveResource(book);
-                    setActiveView('main');
-                }}
-            />
+            {/* Non-persistent views (Studio generation/review) */}
+            {!isPersistentView && (
+                <div className="w-full h-full overflow-hidden">
+                    {activeView === "ai-document-create" && <AIDocumentCreate onBack={() => setActiveView('studio')} onGenerate={handleDocumentGenerate} />}
+                    {activeView === "ai-presentation-create" && <AIPresentationCreate onBack={() => setActiveView('studio')} onGenerate={handlePresentationGenerate} />}
+                    {activeView === "ai-document-review" && <AIDocumentReview
+                        onBack={() => setActiveView('ai-document-create')}
+                        generationData={state.generationData}
+                        generatedContent={state.generatedContent}
+                        onRefine={handleRefine}
+                        onExport={handleExport}
+                        onSave={handleSave}
+                        isGenerating={state.isGenerating}
+                        error={state.error}
+                    />}
+                    {activeView === "ai-presentation-review" && <AIPresentationReview
+                        onBack={() => setActiveView('ai-presentation-create')}
+                        generationData={state.generationData}
+                        generatedContent={{ slides: [] }} // TODO: Parse actual slides
+                        onRefine={handleRefine}
+                        onExport={handleExport}
+                        onSave={handleSave}
+                        isGenerating={state.isGenerating}
+                        error={state.error}
+                    />}
+                </div>
+            )}
         </Layout>
     );
-    if (activeView === "focus") return <Layout><FocusMode /></Layout>;
-    if (activeView === "grades") return <Layout><Grades /></Layout>;
-    if (activeView === "finance") return <Layout><Finance /></Layout>;
-    if (activeView === "flashcards") return <Layout><FlashcardsPage /></Layout>;
-    if (activeView === "chat") return <Layout><ChatLocalLLM /></Layout>;
-    if (activeView === "studio") {
-        return (
-            <Layout>
-                <StudioPage
-                    onViewResource={(res: Resource) => {
-                        setActiveResource(res);
-                        setActiveView('main');
-                    }}
-                    setActiveView={setActiveView}
-                />
-            </Layout>
-        );
-    }
-
-    if (activeView === "ai-document-create") return <Layout><AIDocumentCreate onBack={() => setActiveView('studio')} onGenerate={handleDocumentGenerate} /></Layout>;
-    if (activeView === "ai-presentation-create") return <Layout><AIPresentationCreate onBack={() => setActiveView('studio')} onGenerate={handlePresentationGenerate} /></Layout>;
-    if (activeView === "ai-document-review") return <Layout><AIDocumentReview
-        onBack={() => setActiveView('ai-document-create')}
-        generationData={state.generationData}
-        generatedContent={state.generatedContent}
-        onRefine={handleRefine}
-        onExport={handleExport}
-        onSave={handleSave}
-        isGenerating={state.isGenerating}
-        error={state.error}
-    /></Layout>;
-    if (activeView === "ai-presentation-review") return <Layout><AIPresentationReview
-        onBack={() => setActiveView('ai-presentation-create')}
-        generationData={state.generationData}
-        generatedContent={{ slides: [] }} // TODO: Parse actual slides
-        onRefine={handleRefine}
-        onExport={handleExport}
-        onSave={handleSave}
-        isGenerating={state.isGenerating}
-        error={state.error}
-    /></Layout>;
-
-    return null;
 }
+

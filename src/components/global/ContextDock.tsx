@@ -149,7 +149,7 @@ export function ContextDock() {
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.9, y: 20 }}
                         transition={{ type: "spring", bounce: 0.2, duration: 0.3 }}
-                        className="mb-4 w-80 bg-bg-surface/95 backdrop-blur-xl border border-border shadow-2xl rounded-2xl overflow-hidden flex flex-col max-h-[70vh] cursor-auto"
+                        className="mb-4 w-80 bg-bg-surface/95 backdrop-blur-md border border-border shadow-2xl rounded-2xl overflow-hidden flex flex-col max-h-[70vh] cursor-auto"
                         onDragOver={handleDragOver}
                         onDrop={handleDrop}
                     >

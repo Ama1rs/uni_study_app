@@ -37,7 +37,7 @@ export function CourseList({
 
     if (courses.length === 0) {
         return (
-            <div className="glass-card flex-1 rounded-xl border border-border/40 overflow-hidden flex flex-col bg-bg-surface/30">
+            <div className="glass-card rounded-xl border border-border/40 overflow-hidden flex flex-col bg-bg-surface/30">
                 <div className="flex-1 flex flex-col items-center justify-center py-16 px-6">
                     <motion.div
                         initial={{ scale: 0 }}
@@ -57,7 +57,7 @@ export function CourseList({
     }
 
     return (
-        <div className="glass-card flex-1 rounded-xl border border-border/40 overflow-hidden flex flex-col bg-bg-surface/30">
+        <div className="glass-card rounded-xl border border-border/40 overflow-hidden flex flex-col bg-bg-surface/30">
             {/* Header */}
             <div className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-border/30 bg-bg-primary/20">
                 <div className="col-span-1 text-[9px] font-medium text-text-tertiary uppercase tracking-wide">Code</div>
@@ -68,7 +68,7 @@ export function CourseList({
                 <div className="col-span-1" />
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <div className="">
                 <AnimatedContainer stagger={0.04} className="divide-y divide-border/10">
                     {courses.map(course => {
                         const hasGrade = course.manual_grade !== null && course.manual_grade !== undefined;

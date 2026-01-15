@@ -14,7 +14,7 @@ export function SummaryHero({ summary, totalAssetsValue, itemVariants }: Summary
     const isPositive = netWorthChange >= 0;
 
     return (
-        <div className="p-4 bg-bg-surface/40 flex items-center justify-between">
+        <div className="p-4 bg-bg-surface/40 subtle-gradient-accent flex items-center justify-between">
             <div className="flex items-center gap-12">
                 {/* Metric 1: Total Balance */}
                 <motion.div

@@ -16,7 +16,7 @@ export function PastSemesterList({ pastSemesters, summary, getGradeColor }: Past
 
     if (pastSemesters.length === 0) {
         return (
-            <div className="glass-card flex-1 rounded-xl border border-border/40 overflow-hidden flex flex-col bg-bg-surface/30">
+            <div className="glass-card rounded-xl border border-border/40 overflow-hidden flex flex-col bg-bg-surface/30">
                 <div className="flex-1 flex flex-col items-center justify-center py-16 px-6">
                     <motion.div
                         initial={{ scale: 0 }}
@@ -49,7 +49,7 @@ export function PastSemesterList({ pastSemesters, summary, getGradeColor }: Past
     });
 
     return (
-        <div className="glass-card flex-1 rounded-xl border border-border/40 overflow-hidden flex flex-col bg-bg-surface/30">
+        <div className="glass-card rounded-xl border border-border/40 overflow-hidden flex flex-col bg-bg-surface/30">
             {/* Header */}
             <div className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-border/30 bg-bg-primary/20">
                 <div className="col-span-6 text-[9px] font-medium text-text-tertiary uppercase tracking-wide">Period</div>
@@ -57,7 +57,7 @@ export function PastSemesterList({ pastSemesters, summary, getGradeColor }: Past
                 <div className="col-span-3 text-right text-[9px] font-medium text-text-tertiary uppercase tracking-wide">Semester GPA</div>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <div className="">
                 <AnimatedContainer stagger={0.04} className="divide-y divide-border/10">
                     {semestersWithTrends.map(({ semester: sem, gpa: semGpa, trend }, index) => {
                         const isExpanded = expandedSemester === sem.id;

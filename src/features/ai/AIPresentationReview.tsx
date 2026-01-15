@@ -17,7 +17,7 @@ interface AIPresentationReviewProps {
     generatedContent: any; // Presentation data structure
     onRefine: (instructions: string) => void;
     onExport: (format: string) => void;
-    onSave: (repositoryId: string) => void;
+    onSave: (repositoryId: string, content: string) => void;
     isGenerating?: boolean;
     error?: string;
 }
@@ -63,7 +63,10 @@ export function AIPresentationReview({
 
     const handleSave = () => {
         if (selectedRepository) {
-            onSave(selectedRepository);
+            const content = typeof generatedContent === 'string'
+                ? generatedContent
+                : JSON.stringify(generatedContent);
+            onSave(selectedRepository, content);
         }
     };
 

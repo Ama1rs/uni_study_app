@@ -56,7 +56,7 @@ export function Sidebar({
             <motion.div
                 className={cn(
                     "flex flex-col items-center py-6 transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] relative z-10",
-                    "w-14 bg-bg-surface/60 backdrop-blur-2xl border border-border/80 rounded-[2.5rem] h-fit shadow-2xl"
+                    "w-14 bg-bg-surface border border-border/80 rounded-[2.5rem] h-fit shadow-2xl"
                 )}
                 initial={{ opacity: 0, x: -50, scale: 0.95 }}
                 animate={{
@@ -126,7 +126,7 @@ export function Sidebar({
                                         {/* Tooltip */}
                                         <motion.span
                                             className={cn(
-                                                "absolute left-[calc(100%+12px)] px-3 py-1.5 rounded-full backdrop-blur-xl border text-[11px] font-semibold shadow-2xl opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-50 translate-x-1",
+                                                "absolute left-[calc(100%+12px)] px-3 py-1.5 rounded-full backdrop-blur-md border text-[11px] font-semibold shadow-2xl opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-50 translate-x-1",
                                                 isDark ? "bg-black/40 border-white/10 text-white/90" : "bg-white/80 border-black/5 text-black/80"
                                             )}
                                             initial={{ opacity: 0, x: -5 }}

@@ -28,8 +28,26 @@ pub struct ComponentConfig {
 ///
 /// # Example
 /// ```
+/// # use uni_study_app_lib::grades::{GradingScale, GradingScaleConfig, GradingScaleMapping};
+/// # use uni_study_app_lib::convert_numeric_score;
+/// # let scale = GradingScale {
+/// #     id: 1,
+/// #     name: "10-point".to_string(),
+/// #     type_: "numeric".to_string(),
+/// #     config: GradingScaleConfig {
+/// #         max_point: 10.0,
+/// #         mappings: vec![
+/// #             GradingScaleMapping { min_percent: Some(90), letter: None, point: 10.0 },
+/// #             GradingScaleMapping { min_percent: Some(80), letter: None, point: 9.0 },
+/// #             GradingScaleMapping { min_percent: Some(70), letter: None, point: 8.0 },
+/// #         ],
+/// #     },
+/// #     is_default: true,
+/// # };
 /// // 85% → 9 points (10-point scale with 80% threshold = 9)
-/// convert_numeric_score(85.0, &scale)?
+/// let points = convert_numeric_score(85.0, &scale)?;
+/// assert_eq!(points, 9.0);
+/// # Ok::<(), String>(())
 /// ```
 pub fn convert_numeric_score(score: f64, scale: &GradingScale) -> Result<f64, String> {
     if scale.type_ != "numeric" {
@@ -87,8 +105,25 @@ pub fn convert_numeric_score(score: f64, scale: &GradingScale) -> Result<f64, St
 ///
 /// # Example
 /// ```
+/// # use uni_study_app_lib::grades::{GradingScale, GradingScaleConfig, GradingScaleMapping};
+/// # use uni_study_app_lib::convert_letter_grade;
+/// # let scale = GradingScale {
+/// #     id: 1,
+/// #     name: "4.0 Scale".to_string(),
+/// #     type_: "letter".to_string(),
+/// #     config: GradingScaleConfig {
+/// #         max_point: 4.0,
+/// #         mappings: vec![
+/// #             GradingScaleMapping { min_percent: None, letter: Some("A".to_string()), point: 4.0 },
+/// #             GradingScaleMapping { min_percent: None, letter: Some("B".to_string()), point: 3.0 },
+/// #         ],
+/// #     },
+/// #     is_default: true,
+/// # };
 /// // "A" → 4.0 (US 4.0 scale)
-/// convert_letter_grade("A", &scale)?
+/// let points = convert_letter_grade("A", &scale)?;
+/// assert_eq!(points, 4.0);
+/// # Ok::<(), String>(())
 /// ```
 pub fn convert_letter_grade(grade: &str, scale: &GradingScale) -> Result<f64, String> {
     if scale.type_ != "letter" {
@@ -144,8 +179,19 @@ pub fn get_letter_for_points(point: f64, scale: &GradingScale) -> Option<String>
 ///
 /// # Example
 /// ```
-/// // Components: exam=85 (0.7), lab=90 (0.3) → 86.5
-/// calculate_weighted_score(&components, &config)?
+/// # use uni_study_app_lib::conversion::{ComponentScore, ComponentConfig, calculate_weighted_score};
+/// let components = vec![
+///     ComponentScore { name: "exam".to_string(), score: 85.0, max_score: None },
+///     ComponentScore { name: "lab".to_string(), score: 90.0, max_score: None },
+/// ];
+/// let config = vec![
+///     ComponentConfig { name: "exam".to_string(), weight: 0.7 },
+///     ComponentConfig { name: "lab".to_string(), weight: 0.3 },
+/// ];
+/// // exam=85 (0.7) + lab=90 (0.3) → 86.5
+/// let weighted = calculate_weighted_score(&components, &config)?;
+/// assert!((weighted - 86.5).abs() < 0.01);
+/// # Ok::<(), String>(())
 /// ```
 pub fn calculate_weighted_score(
     components: &[ComponentScore],

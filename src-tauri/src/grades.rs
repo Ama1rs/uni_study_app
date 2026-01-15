@@ -1,4 +1,6 @@
 use crate::DbState;
+use rusqlite::Connection;
+use tracing;
 
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -140,77 +142,22 @@ pub fn update_course_grade_details(
 
 #[tauri::command]
 pub fn get_gpa_summary(state: State<DbState>) -> Result<GradeSummary, String> {
-    // Get user's program FIRST, before locking the connection
-    // This prevents deadlock since get_user_program also needs to lock the connection
-    let user_program = get_user_program(state.clone())?;
-
-    // Now lock the connection for our queries
+    // Lock the connection once for all operations
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
 
-    // If no program assigned, use default scale (4.0)
+    // Get user's program
+    let user_program = get_user_program_with_conn(&conn)?;
+
+    // Get the appropriate grading scale
     let scale = if let Some(program) = user_program {
         if let Some(scale_id) = program.grading_scale_id {
-            // We need to release the lock to call get_grading_scale
-            drop(conn);
-            get_grading_scale(state.clone(), scale_id)?.ok_or("Scale not found".to_string())?
+            get_grading_scale_with_conn(&conn, scale_id)?.ok_or("Scale not found".to_string())?
         } else {
-            // Get default scale - need to reacquire lock
-            // Drop the outer conn first
-            drop(conn);
-
-            let conn = conn_arc.lock().unwrap();
-            let scale = {
-                let mut stmt = conn
-                    .prepare("SELECT id, name, type, config, is_default FROM grading_scales WHERE is_default = 1 ORDER BY name ASC LIMIT 1")
-                    .map_err(|e| e.to_string())?;
-
-                stmt.query_row([], |row| {
-                    let config_str: String = row.get(3)?;
-                    Ok(GradingScale {
-                        id: row.get(0)?,
-                        name: row.get(1)?,
-                        type_: row.get(2)?,
-                        config: serde_json::from_str(&config_str).unwrap_or(GradingScaleConfig {
-                            max_point: 4.0,
-                            mappings: vec![],
-                        }),
-                        is_default: row.get(4)?,
-                    })
-                })
-                .map_err(|_| "No default scale found".to_string())?
-            };
-            drop(conn);
-            scale
+            get_default_grading_scale_with_conn(&conn)?
         }
     } else {
-        // Get default scale
-        // Drop the outer conn first
-        drop(conn);
-
-        let conn = conn_arc.lock().unwrap();
-        let scale = {
-            let mut stmt = conn
-                .prepare("SELECT id, name, type, config, is_default FROM grading_scales WHERE is_default = 1 ORDER BY name ASC LIMIT 1")
-                .map_err(|e| e.to_string())?;
-
-            stmt.query_row([], |row| {
-                let config_str: String = row.get(3)?;
-                Ok(GradingScale {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    type_: row.get(2)?,
-                    config: serde_json::from_str(&config_str).unwrap_or(GradingScaleConfig {
-                        max_point: 4.0,
-                        mappings: vec![],
-                    }),
-                    is_default: row.get(4)?,
-                })
-            })
-            .map_err(|_| "No default scale found".to_string())?
-        };
-        drop(conn);
-        scale
+        get_default_grading_scale_with_conn(&conn)?
     };
 
     // Safeguard against division by zero
@@ -219,9 +166,6 @@ pub fn get_gpa_summary(state: State<DbState>) -> Result<GradeSummary, String> {
     } else {
         4.0
     };
-
-    // Now reacquire the lock for our main queries
-    let conn = conn_arc.lock().unwrap();
 
     // Calculate Semester GPAs
     // We group by semester_id.
@@ -317,7 +261,7 @@ pub fn get_grading_scales(state: State<DbState>) -> Result<Vec<GradingScale>, St
     let conn_arc = match state.db_manager.get_active_profile_db() {
         Ok(conn) => conn,
         Err(e) => {
-            println!("No active profile db: {}", e);
+            tracing::warn!("No active profile db: {}", e);
             // Return default scales if no profile db
             return Ok(vec![
                 GradingScale {
@@ -420,7 +364,7 @@ pub fn get_grading_scales(state: State<DbState>) -> Result<Vec<GradingScale>, St
         .prepare("SELECT id, name, type, config, is_default FROM grading_scales ORDER BY is_default DESC, name ASC")
         .map_err(|e| e.to_string())?;
 
-    let scales = stmt
+    let scales_iter = stmt
         .query_map([], |row| {
             let id: i64 = row.get(0)?;
             let name: String = row.get(1)?;
@@ -445,10 +389,8 @@ pub fn get_grading_scales(state: State<DbState>) -> Result<Vec<GradingScale>, St
         })
         .map_err(|e| e.to_string())?;
 
-    let mut result = Vec::new();
-    for scale_res in scales {
-        result.push(scale_res.map_err(|e| e.to_string())?);
-    }
+    let result: Result<Vec<GradingScale>, _> = scales_iter.collect();
+    let result = result.map_err(|e| e.to_string())?;
 
     if result.is_empty() {
         return Err("No grading scales found. Please run database migrations.".to_string());
@@ -463,6 +405,10 @@ pub fn get_grading_scales(state: State<DbState>) -> Result<Vec<GradingScale>, St
 pub fn get_grading_scale(state: State<DbState>, id: i64) -> Result<Option<GradingScale>, String> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
+    get_grading_scale_with_conn(&conn, id)
+}
+
+fn get_grading_scale_with_conn(conn: &Connection, id: i64) -> Result<Option<GradingScale>, String> {
     let mut stmt = conn
         .prepare("SELECT id, name, type, config, is_default FROM grading_scales WHERE id = ?1")
         .map_err(|e| e.to_string())?;
@@ -496,6 +442,27 @@ pub fn get_grading_scale(state: State<DbState>, id: i64) -> Result<Option<Gradin
         Some(row) => row.map(Some).map_err(|e| e.to_string()),
         None => Ok(None),
     }
+}
+
+fn get_default_grading_scale_with_conn(conn: &Connection) -> Result<GradingScale, String> {
+    let mut stmt = conn
+        .prepare("SELECT id, name, type, config, is_default FROM grading_scales WHERE is_default = 1 ORDER BY name ASC LIMIT 1")
+        .map_err(|e| e.to_string())?;
+
+    stmt.query_row([], |row| {
+        let config_str: String = row.get(3)?;
+        Ok(GradingScale {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            type_: row.get(2)?,
+            config: serde_json::from_str(&config_str).unwrap_or(GradingScaleConfig {
+                max_point: 4.0,
+                mappings: vec![],
+            }),
+            is_default: row.get(4)?,
+        })
+    })
+    .map_err(|_| "No default scale found".to_string())
 }
 
 /// Creates a new grading scale
@@ -704,6 +671,10 @@ pub fn set_user_program(state: State<DbState>, program_id: i64) -> Result<(), St
 pub fn get_user_program(state: State<DbState>) -> Result<Option<Program>, String> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
+    get_user_program_with_conn(&conn)
+}
+
+fn get_user_program_with_conn(conn: &Connection) -> Result<Option<Program>, String> {
     let mut stmt = conn
         .prepare(
             "SELECT p.id, p.name, p.total_required_credits, p.grading_scale_id, p.duration_months 

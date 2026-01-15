@@ -5,8 +5,9 @@ use std::fs;
 use std::sync::{Arc, Mutex, RwLock};
 use tauri::AppHandle;
 use tauri::Manager;
+use tracing;
 
-use crate::db;
+use crate::migrations;
 
 pub struct DatabaseManager {
     pub global_conn: Arc<Mutex<Connection>>,
@@ -31,7 +32,7 @@ impl DatabaseManager {
         let global_conn = Connection::open(global_db_path).map_err(|e| e.to_string())?;
 
         // Run global migrations
-        db::run_global_migrations(&global_conn).map_err(|e| e.to_string())?;
+        migrations::run_global_migrations(&global_conn).map_err(|e| e.to_string())?;
 
         let manager = Self {
             global_conn: Arc::new(Mutex::new(global_conn)),
@@ -41,7 +42,7 @@ impl DatabaseManager {
 
         // Try to migrate legacy data if first run of split DB
         manager.migrate_legacy_data().map_err(|e| {
-            println!("Migration Warning: {}", e);
+            tracing::warn!("Migration Warning: {}", e);
             e
         })?;
 
@@ -75,7 +76,7 @@ impl DatabaseManager {
         let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
 
         // Run profile migrations
-        db::run_profile_migrations(&conn).map_err(|e| e.to_string())?;
+        migrations::run_profile_migrations(&conn).map_err(|e| e.to_string())?;
 
         let conn_arc = Arc::new(Mutex::new(conn));
 
@@ -161,7 +162,7 @@ impl DatabaseManager {
             return Ok(()); // Already migrated or fresh install
         }
 
-        println!("Legacy data detected in global DB. Starting migration...");
+        tracing::info!("Legacy data detected in global DB. Starting migration...");
 
         // 1. Create backup
         let app_dir = self
@@ -177,7 +178,7 @@ impl DatabaseManager {
         // since we are in early initialization.
         // Actually, copying might fail if file is locked. Let's try to copy it.
         if let Err(e) = fs::copy(&legacy_db_path, &backup_path) {
-            println!("Migration Backup Warning: Could not create backup: {}", e);
+            tracing::warn!("Migration Backup Warning: Could not create backup: {}", e);
         }
 
         // 2. Find target user for migration (pick the first one found, or skip if no users)
@@ -197,7 +198,7 @@ impl DatabaseManager {
             }
         };
 
-        println!("Migrating legacy data to user ID: {}", target_user_id);
+        tracing::info!("Migrating legacy data to user ID: {}", target_user_id);
 
         // 3. Open profile DB
         drop(global_conn); // Release global lock to avoid deadlocks if get_profile_db needs it
@@ -247,7 +248,11 @@ impl DatabaseManager {
                 .unwrap_or(0);
 
             if count > 0 {
-                println!("Migrating table {} ({} rows)...", table, count);
+                tracing::info!(
+                    table = table,
+                    count = count,
+                    "Migrating table"
+                );
 
                 // Get columns of both tables to find intersection and handle mapping
                 let mut target_cols = Vec::new();
@@ -280,9 +285,9 @@ impl DatabaseManager {
                     .collect();
 
                 if common_cols.is_empty() {
-                    println!(
-                        "Warning: No common columns found for table {}. Skipping.",
-                        table
+                    tracing::warn!(
+                        table = table,
+                        "Warning: No common columns found for table. Skipping."
                     );
                     continue;
                 }

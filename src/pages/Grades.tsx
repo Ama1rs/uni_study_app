@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Plus, Settings, BookOpen, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -70,21 +70,14 @@ export function Grades() {
         try {
             console.log('[Grades] Starting data refresh...');
 
-            console.log('[Grades] Fetching scales...');
-            await withTimeout(fetchScales(), 5000, 'fetchScales');
-            console.log('[Grades] ✓ Scales loaded');
-
-            console.log('[Grades] Fetching semesters and courses...');
-            await withTimeout(fetchData(), 5000, 'fetchData');
-            console.log('[Grades] ✓ Data loaded');
-
-            console.log('[Grades] Fetching GPA summary...');
-            await withTimeout(fetchSummary(), 10000, 'fetchSummary');
-            console.log('[Grades] ✓ Summary loaded');
-
-            console.log('[Grades] Fetching projections...');
-            await withTimeout(fetchProjection(), 10000, 'fetchProjection');
-            console.log('[Grades] ✓ Projections loaded');
+            console.log('[Grades] Fetching all data in parallel...');
+            await Promise.all([
+                withTimeout(fetchScales(), 5000, 'fetchScales'),
+                withTimeout(fetchData(), 5000, 'fetchData'),
+                withTimeout(fetchSummary(), 10000, 'fetchSummary'),
+                withTimeout(fetchProjection(), 10000, 'fetchProjection'),
+            ]);
+            console.log('[Grades] ✓ All data loaded');
 
             // Check Onboarding Status
             const userProgram = await invoke<Program | null>('get_user_program');
@@ -234,53 +227,57 @@ export function Grades() {
 
     // Segment logic
     const currentSemesterId = semesters.length > 0 ? semesters[0].id : null;
-    const coursesBySemester: Record<number, ExtendedRepository[]> = {};
-    courses.forEach((c: ExtendedRepository) => {
-        if (c.semester_id) {
-            if (!coursesBySemester[c.semester_id]) coursesBySemester[c.semester_id] = [];
-            coursesBySemester[c.semester_id].push(c);
+    const { currentCourses, pastSemesters, displayChart } = useMemo(() => {
+        const coursesBySemester: Record<number, ExtendedRepository[]> = {};
+        courses.forEach((c: ExtendedRepository) => {
+            if (c.semester_id) {
+                if (!coursesBySemester[c.semester_id]) coursesBySemester[c.semester_id] = [];
+                coursesBySemester[c.semester_id].push(c);
+            }
+        });
+
+        const currentCourses = currentSemesterId ? (coursesBySemester[currentSemesterId] || []) : [];
+
+        // Only show past semesters that have actual GPA data
+        const pastSemesters = semesters.filter((s: Semester) => {
+            if (s.id === currentSemesterId) return false;
+            const hasGpa = summary.semester_gpas.some((g: SemesterGpa) => g.semester_id === s.id);
+            return hasGpa;
+        });
+
+        // Chart Data: Only show semesters with actual GPA + future projections
+        const allChartSemesters: { val: number, label: string, isFuture: boolean, id?: number }[] = [];
+
+        // 1. Add only semesters that have GPA data
+        const sortedExistingSems = [...semesters].sort((a: Semester, b: Semester) => a.id - b.id);
+        sortedExistingSems.forEach((s: Semester) => {
+            const gpaData = summary.semester_gpas.find((g: SemesterGpa) => g.semester_id === s.id);
+            if (gpaData && gpaData.gpa > 0) { // Only add if there's actual GPA data
+                allChartSemesters.push({
+                    val: gpaData.gpa,
+                    label: s.name,
+                    isFuture: false,
+                    id: s.id
+                });
+            }
+        });
+
+        // 2. Add future projections if target is set
+        if (projection && projection.target_cgpa && projection.horizon && projection.horizon > 0) {
+            const requiredGpa = projection.required_future_gpa || 0;
+            for (let i = 1; i <= Math.min(projection.horizon, 6); i++) { // Limit to 6 future semesters
+                allChartSemesters.push({
+                    val: requiredGpa,
+                    label: `Sem +${i}`,
+                    isFuture: true
+                });
+            }
         }
-    });
 
-    const currentCourses = currentSemesterId ? (coursesBySemester[currentSemesterId] || []) : [];
+        const displayChart = allChartSemesters;
 
-    // Only show past semesters that have actual GPA data
-    const pastSemesters = semesters.filter((s: Semester) => {
-        if (s.id === currentSemesterId) return false;
-        const hasGpa = summary.semester_gpas.some((g: SemesterGpa) => g.semester_id === s.id);
-        return hasGpa;
-    });
-
-    // Chart Data: Only show semesters with actual GPA + future projections
-    const allChartSemesters: { val: number, label: string, isFuture: boolean, id?: number }[] = [];
-
-    // 1. Add only semesters that have GPA data
-    const sortedExistingSems = [...semesters].sort((a: Semester, b: Semester) => a.id - b.id);
-    sortedExistingSems.forEach((s: Semester) => {
-        const gpaData = summary.semester_gpas.find((g: SemesterGpa) => g.semester_id === s.id);
-        if (gpaData && gpaData.gpa > 0) { // Only add if there's actual GPA data
-            allChartSemesters.push({
-                val: gpaData.gpa,
-                label: s.name,
-                isFuture: false,
-                id: s.id
-            });
-        }
-    });
-
-    // 2. Add future projections if target is set
-    if (projection && projection.target_cgpa && projection.horizon && projection.horizon > 0) {
-        const requiredGpa = projection.required_future_gpa || 0;
-        for (let i = 1; i <= Math.min(projection.horizon, 6); i++) { // Limit to 6 future semesters
-            allChartSemesters.push({
-                val: requiredGpa,
-                label: `Sem +${i}`,
-                isFuture: true
-            });
-        }
-    }
-
-    const displayChart = allChartSemesters;
+        return { coursesBySemester, currentCourses, pastSemesters, displayChart };
+    }, [courses, semesters, summary, projection, currentSemesterId]);
 
     if (error && !isLoading) {
         return (
@@ -325,7 +322,7 @@ export function Grades() {
     }
 
     return (
-        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto custom-scrollbar p-6 md:p-10 bg-bg-primary/30">
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto custom-scrollbar p-6 md:p-10 bg-bg-primary/30">
             <AnimatePresence>
                 <GradeSettingsDialog isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onSave={refreshAll} />
                 {editingCourse && (

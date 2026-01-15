@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
@@ -371,11 +372,9 @@ export function StudioResourceTools() {
 
             {/* Image Tools */}
             <div>
-                <div className="flex items-center gap-2 mb-2 px-2 justify-between">
-                    <div className="flex items-center gap-2">
-                        <ImageIcon size={14} className="text-cyan-400" />
-                        <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-widest font-mono">Image Tools</h3>
-                    </div>
+                <div className="flex items-center gap-2 mb-2 px-2">
+                    <ImageIcon size={14} className="text-cyan-400" />
+                    <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-widest font-mono">Image Tools</h3>
                 </div>
                 <div className="flex flex-col gap-1">
                     <ToolItem
@@ -399,7 +398,7 @@ export function StudioResourceTools() {
                 </div>
             </div>
 
-            {isDialogOpen && dialogMeta && (
+            {isDialogOpen && dialogMeta && (typeof document !== 'undefined' ? createPortal(
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
                     <div className="bg-bg-surface w-[560px] p-6 rounded-sm border border-border shadow-2xl flex flex-col max-h-[85vh]">
                         <div className="flex justify-between items-center mb-6 flex-shrink-0">
@@ -596,8 +595,7 @@ export function StudioResourceTools() {
                             </button>
                         </div>
                     </div>
-                </div>
-            )}
+                </div>, document.body) : null)}
         </div>
     );
 }

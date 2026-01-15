@@ -43,6 +43,7 @@ export function AddEntryModal({ onClose, onAdd }: AddEntryModalProps) {
                 initial={{ scale: 0.9, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                style={{ borderRadius: 'var(--ui-radius-lg)', boxShadow: 'var(--elevation-1)' }}
             >
 
 

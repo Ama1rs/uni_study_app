@@ -1,6 +1,6 @@
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, FileText, Sparkles, Users, MessageSquare, BookOpen, ChevronRight } from 'lucide-react';
+import { useAIGeneration } from '@/contexts/AIGenerationContext';
 
 interface AIDocumentCreateProps {
     onBack: () => void;
@@ -22,19 +22,8 @@ export interface DocumentGenerationData {
 }
 
 export function AIDocumentCreate({ onBack, onGenerate }: AIDocumentCreateProps) {
-    const [formData, setFormData] = useState<DocumentGenerationData>({
-        title: '',
-        topic: '',
-        description: '',
-        target_audience: 'student',
-        tone: 'explanatory',
-        length: 'medium',
-        language: 'English',
-        document_type: 'notes',
-        formatting: 'markdown',
-        section_structure: 'auto',
-        reference_material: ''
-    });
+    const { state, setState } = useAIGeneration();
+    const formData = state.documentFormData;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -43,7 +32,9 @@ export function AIDocumentCreate({ onBack, onGenerate }: AIDocumentCreateProps) 
     };
 
     const updateFormData = (field: keyof DocumentGenerationData, value: string) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
+        setState({
+            documentFormData: { ...formData, [field]: value }
+        });
     };
 
     return (

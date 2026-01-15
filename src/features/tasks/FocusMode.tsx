@@ -32,7 +32,11 @@ interface StudySession {
     is_break: boolean;
 }
 
-export function FocusMode() {
+interface FocusModeProps {
+    activeView: string;
+}
+
+export function FocusMode({ activeView }: FocusModeProps) {
     const [isActive, setIsActive] = useState(false);
     const { mode } = useTheme();
     const isDarkMode = mode === 'dark';
@@ -56,13 +60,13 @@ export function FocusMode() {
     }, []);
 
     useEffect(() => {
-        if (isActive) {
+        if (isActive && activeView === 'focus') {
             document.body.classList.add('nav-locked');
         } else {
             document.body.classList.remove('nav-locked');
         }
         return () => document.body.classList.remove('nav-locked');
-    }, [isActive]);
+    }, [isActive, activeView]);
 
 
     async function loadInitialData() {
@@ -348,7 +352,7 @@ export function FocusMode() {
 
                                         <motion.div
                                             className={cn(
-                                                "absolute inset-0 rounded-[50px] border backdrop-blur-[24px] transition-colors duration-700",
+                                                "absolute inset-0 rounded-[50px] border backdrop-blur-md transition-colors duration-700",
                                                 isDarkMode
                                                     ? "border-border/30 bg-bg-surface/30"
                                                     : "border-black/5 bg-white/40 shadow-xl"

@@ -1,6 +1,6 @@
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Presentation, Sparkles, Users, MessageSquare, ChevronRight, Image } from 'lucide-react';
+import { useAIGeneration } from '@/contexts/AIGenerationContext';
 
 interface AIPresentationCreateProps {
     onBack: () => void;
@@ -22,19 +22,8 @@ export interface PresentationGenerationData {
 }
 
 export function AIPresentationCreate({ onBack, onGenerate }: AIPresentationCreateProps) {
-    const [formData, setFormData] = useState<PresentationGenerationData>({
-        title: '',
-        topic: '',
-        description: '',
-        target_audience: 'student',
-        tone: 'explanatory',
-        slide_count: '10',
-        language: 'English',
-        slide_style: 'minimal',
-        bullet_preference: 'balanced',
-        include_speaker_notes: true,
-        reference_material: ''
-    });
+    const { state, setState } = useAIGeneration();
+    const formData = state.presentationFormData;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -42,7 +31,9 @@ export function AIPresentationCreate({ onBack, onGenerate }: AIPresentationCreat
     };
 
     const updateFormData = (field: keyof PresentationGenerationData, value: string | boolean) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
+        setState({
+            presentationFormData: { ...formData, [field]: value }
+        });
     };
 
     return (

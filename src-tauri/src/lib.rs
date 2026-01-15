@@ -1,11 +1,12 @@
 mod book_commands;
-mod conversion;
+pub mod conversion;
 mod db;
 mod db_manager;
 mod finance;
-mod grades;
+pub mod grades;
 mod image_tools;
 mod inference;
+mod migrations;
 mod ollama;
 mod pdf_tools;
 mod projection;
@@ -16,6 +17,12 @@ use argon2::{
     Argon2,
 };
 use base64::{engine::general_purpose, Engine as _};
+use db::{
+    d_days::DDayRepository, flashcards::FlashcardRepository, graph::GraphRepository,
+    lectures::LectureRepository, links::LinkRepository, planner::PlannerRepository,
+    repositories::RepositoryRepository, resources::ResourceRepository,
+    study_sessions::StudySessionRepository, tasks::TaskRepository,
+};
 use db_manager::DatabaseManager;
 use finance::{
     ExpenseFlow, FinanceAsset, FinanceBudget, FinanceSummary, FinanceTransaction, SavingsGoal,
@@ -29,26 +36,48 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use tauri::{Manager, State};
+use tracing;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use ts_rs::TS;
+
+// Define custom error type for better error handling
+#[derive(thiserror::Error, Debug, Serialize, Deserialize)]
+pub enum AppError {
+    #[error("Database error: {0}")]
+    Database(String),
+    #[error("Validation error: {0}")]
+    Validation(String),
+    #[error("Network error: {0}")]
+    Network(String),
+    #[error("File I/O error: {0}")]
+    Io(String),
+    #[error("Authentication error: {0}")]
+    Auth(String),
+    #[error("Internal error: {0}")]
+    Internal(String),
+}
+
+pub type AppResult<T> = Result<T, AppError>;
+
+impl From<String> for AppError {
+    fn from(s: String) -> Self {
+        AppError::Internal(s)
+    }
+}
+
+impl From<&str> for AppError {
+    fn from(s: &str) -> Self {
+        AppError::Internal(s.to_string())
+    }
+}
 
 // Redefine DbState to hold the DatabaseManager
 pub struct DbState {
     pub db_manager: DatabaseManager,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct Resource {
-    id: i64,
-    repository_id: Option<i64>,
-    title: String,
-    #[serde(rename = "type")]
-    type_: String,
-    path: Option<String>,
-    content: Option<String>,
-    tags: Option<String>,
-    created_at: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, TS)]
+#[ts(export)]
 pub struct UserProfile {
     pub id: i64,
     pub name: Option<String>,
@@ -56,7 +85,8 @@ pub struct UserProfile {
     pub avatar_path: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, TS)]
+#[ts(export)]
 pub struct AppSettings {
     pub id: i64,
     pub theme_style: String,
@@ -73,87 +103,64 @@ pub struct AppSettings {
     pub graph_show_topology: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, TS)]
+#[ts(export)]
 pub struct UserPublic {
     pub id: i64,
     pub username: String,
     pub created_at: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Repository {
-    pub id: i64,
-    pub name: String,
-    pub code: Option<String>,
-    pub semester: Option<String>,
-    pub description: Option<String>,
-    pub credits: f64,
-    pub semester_id: Option<i64>,
-    pub manual_grade: Option<f64>,
-    pub status: String,
-    pub component_config: Option<String>,
-    pub component_scores: Option<String>,
-    pub grading_scale_id: Option<i64>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Lecture {
-    pub id: i64,
-    pub repository_id: i64,
-    pub title: String,
-    pub url: String,
-    pub thumbnail: Option<String>,
-    pub group_name: Option<String>,
-    pub is_completed: bool,
-    pub order_index: Option<i32>,
-}
-
-// Re-export Link from db
 pub use conversion::{
     calculate_weighted_score, convert_course_score, convert_letter_grade, convert_numeric_score,
     get_letter_for_points,
 };
 pub use db::{
-    DDay, Flashcard, Link, LinkType, LinkV2, PlannerEvent, ResourceMetadata, StudySession, Task,
+    DDay, Flashcard, Lecture, Link, LinkType, LinkV2, PlannerEvent, Repository, Resource,
+    ResourceMetadata, SqliteDDayRepository, SqliteFlashcardRepository, SqliteGraphRepository,
+    SqliteLectureRepository, SqliteLinkRepository, SqlitePlannerRepository,
+    SqliteRepositoryRepository, SqliteResourceRepository, SqliteStudySessionRepository,
+    SqliteTaskRepository, StudySession, Task,
 };
 
-fn hash_password(password: &str) -> Result<String, String> {
+fn hash_password(password: &str) -> AppResult<String> {
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
     argon2
         .hash_password(password.as_bytes(), &salt)
-        .map_err(|e| e.to_string())
+        .map_err(|e| AppError::Internal(e.to_string()))
         .map(|hash| hash.to_string())
 }
 
-fn verify_password(hash: &str, password: &str) -> Result<bool, String> {
-    let parsed_hash = PasswordHash::new(hash).map_err(|e| e.to_string())?;
+fn verify_password(hash: &str, password: &str) -> AppResult<bool> {
+    let parsed_hash = PasswordHash::new(hash).map_err(|e| AppError::Internal(e.to_string()))?;
     Argon2::default()
         .verify_password(password.as_bytes(), &parsed_hash)
         .map(|_| true)
-        .map_err(|e| e.to_string())
+        .map_err(|e| AppError::Internal(e.to_string()))
 }
 
-fn get_session_user_id(conn: &rusqlite::Connection) -> Result<Option<i64>, String> {
+fn get_session_user_id(conn: &rusqlite::Connection) -> AppResult<Option<i64>> {
     conn.query_row(
         "SELECT current_user_id FROM session_state WHERE id = 1",
         [],
         |row| row.get::<_, Option<i64>>(0),
     )
     .optional()
-    .map_err(|e| e.to_string())
+    .map_err(|e| AppError::Database(e.to_string()))
     .map(|opt| opt.flatten())
 }
 
 #[tauri::command]
-fn read_file_base64(path: String) -> Result<String, String> {
-    let mut file = File::open(&path).map_err(|e| e.to_string())?;
+fn read_file_base64(path: String) -> AppResult<String> {
+    let mut file = File::open(&path).map_err(|e| AppError::Io(e.to_string()))?;
     let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).map_err(|e| e.to_string())?;
+    file.read_to_end(&mut buffer)
+        .map_err(|e| AppError::Io(e.to_string()))?;
     Ok(general_purpose::STANDARD.encode(&buffer))
 }
 
-fn fetch_user_public(conn: &rusqlite::Connection, user_id: i64) -> Result<UserPublic, String> {
+fn fetch_user_public(conn: &rusqlite::Connection, user_id: i64) -> AppResult<UserPublic> {
     conn.query_row(
         "SELECT id, username, created_at FROM users WHERE id = ?1",
         [user_id],
@@ -165,7 +172,7 @@ fn fetch_user_public(conn: &rusqlite::Connection, user_id: i64) -> Result<UserPu
             })
         },
     )
-    .map_err(|e| e.to_string())
+    .map_err(|e| AppError::Database(e.to_string()))
 }
 
 #[tauri::command]
@@ -173,12 +180,16 @@ fn register_user(
     state: State<DbState>,
     username: String,
     password: String,
-) -> Result<UserPublic, String> {
+) -> AppResult<UserPublic> {
     if username.trim().is_empty() || password.trim().is_empty() {
-        return Err("Username and password are required".to_string());
+        return Err(AppError::Validation(
+            "Username and password are required".to_string(),
+        ));
     }
     if password.len() < 6 {
-        return Err("Password must be at least 6 characters".to_string());
+        return Err(AppError::Validation(
+            "Password must be at least 6 characters".to_string(),
+        ));
     }
 
     let global_conn = state.db_manager.get_global_conn();
@@ -189,7 +200,7 @@ fn register_user(
         "INSERT INTO users (username, password_hash) VALUES (?1, ?2)",
         (&username, &hash),
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| AppError::Database(e.to_string()))?;
     let user_id = conn.last_insert_rowid();
 
     conn.execute(
@@ -197,7 +208,7 @@ fn register_user(
          ON CONFLICT(id) DO UPDATE SET current_user_id=excluded.current_user_id",
         [&user_id],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| AppError::Database(e.to_string()))?;
 
     // Initialize Profile Database
     // This will create the db file and run profile migrations
@@ -212,7 +223,7 @@ fn register_user(
             "INSERT INTO user_profiles (user_id) VALUES (?1)",
             [&user_id],
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Database(e.to_string()))?;
 
     // Return public user info (re-acquire global lock or just execute query on global conn which is shared but we released lock)
     // Actually fetch_user_public takes &Connection, we can pass global conn after re-locking
@@ -221,7 +232,7 @@ fn register_user(
 }
 
 #[tauri::command]
-fn login(state: State<DbState>, username: String, password: String) -> Result<UserPublic, String> {
+fn login(state: State<DbState>, username: String, password: String) -> AppResult<UserPublic> {
     let global_conn = state.db_manager.get_global_conn();
     let conn = global_conn.lock().unwrap();
     let (user_id, stored_hash): (i64, String) = conn
@@ -230,11 +241,11 @@ fn login(state: State<DbState>, username: String, password: String) -> Result<Us
             [&username],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
-        .map_err(|_| "Invalid username or password".to_string())?;
+        .map_err(|_| AppError::Auth("Invalid username or password".to_string()))?;
 
     let is_valid = verify_password(&stored_hash, &password)?;
     if !is_valid {
-        return Err("Invalid username or password".to_string());
+        return Err(AppError::Auth("Invalid username or password".to_string()));
     }
 
     conn.execute(
@@ -242,7 +253,7 @@ fn login(state: State<DbState>, username: String, password: String) -> Result<Us
          ON CONFLICT(id) DO UPDATE SET current_user_id=excluded.current_user_id",
         [&user_id],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| AppError::Database(e.to_string()))?;
 
     // Warm up profile database
     drop(conn); // Release global lock
@@ -254,7 +265,7 @@ fn login(state: State<DbState>, username: String, password: String) -> Result<Us
 }
 
 #[tauri::command]
-fn get_current_user(state: State<DbState>) -> Result<Option<UserPublic>, String> {
+fn get_current_user(state: State<DbState>) -> AppResult<Option<UserPublic>> {
     let global_conn = state.db_manager.get_global_conn();
     let conn = global_conn.lock().unwrap();
     if let Some(uid) = get_session_user_id(&conn)? {
@@ -266,7 +277,7 @@ fn get_current_user(state: State<DbState>) -> Result<Option<UserPublic>, String>
 }
 
 #[tauri::command]
-fn logout(state: State<DbState>) -> Result<(), String> {
+fn logout(state: State<DbState>) -> AppResult<()> {
     let global_conn = state.db_manager.get_global_conn();
     let conn = global_conn.lock().unwrap();
 
@@ -278,7 +289,7 @@ fn logout(state: State<DbState>) -> Result<(), String> {
          ON CONFLICT(id) DO UPDATE SET current_user_id=NULL",
         [],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| AppError::Database(e.to_string()))?;
 
     drop(conn);
 
@@ -326,7 +337,8 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone, Default, TS)]
+#[ts(export)]
 pub struct OnboardingState {
     pub completed: bool,
     pub ai_provider: Option<String>,
@@ -347,30 +359,30 @@ pub struct OnboardingState {
 
 #[tauri::command]
 fn get_onboarding_state(state: State<DbState>) -> Result<OnboardingState, String> {
-    println!("get_onboarding_state called");
+    tracing::info!("get_onboarding_state called");
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    println!("get_onboarding_state: lock acquired");
+    tracing::debug!("get_onboarding_state: lock acquired");
 
     let mut stmt = conn
         .prepare("SELECT completed, ai_provider, ai_api_key, ai_endpoint, db_type, db_url, user_name, university, n_gpu_layers, n_ctx, n_threads, system_prompt, temperature, top_p, max_tokens FROM onboarding_state WHERE id = 1")
         .map_err(|e| {
-            println!("get_onboarding_state: prepare failed: {}", e);
+            tracing::error!("get_onboarding_state: prepare failed: {}", e);
             e.to_string()
         })?;
-    println!("get_onboarding_state: prepare success");
+    tracing::debug!("get_onboarding_state: prepare success");
 
     let mut rows = stmt.query([]).map_err(|e| {
-        println!("get_onboarding_state: query failed: {}", e);
+        tracing::error!("get_onboarding_state: query failed: {}", e);
         e.to_string()
     })?;
-    println!("get_onboarding_state: query success");
+    tracing::debug!("get_onboarding_state: query success");
 
     if let Some(row) = rows.next().map_err(|e| {
-        println!("get_onboarding_state: rows.next failed: {}", e);
+        tracing::error!("get_onboarding_state: rows.next failed: {}", e);
         e.to_string()
     })? {
-        println!("Found existing onboarding state");
+        tracing::info!("Found existing onboarding state");
         Ok(OnboardingState {
             completed: row.get(0).unwrap_or(false),
             ai_provider: row.get(1).ok(),
@@ -389,7 +401,7 @@ fn get_onboarding_state(state: State<DbState>) -> Result<OnboardingState, String
             max_tokens: row.get(14).ok(),
         })
     } else {
-        println!("No onboarding state found, returning default");
+        tracing::info!("No onboarding state found, returning default");
         Ok(OnboardingState::default())
     }
 }
@@ -399,9 +411,9 @@ fn set_onboarding_state(
     state: State<DbState>,
     onboarding_state: OnboardingState,
 ) -> Result<(), String> {
-    println!(
-        "set_onboarding_state called with completed={}",
-        onboarding_state.completed
+    tracing::info!(
+        completed = onboarding_state.completed,
+        "set_onboarding_state called"
     );
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
@@ -448,7 +460,7 @@ fn set_onboarding_state(
     )
     .map_err(|e| e.to_string())?;
 
-    println!("set_onboarding_state success");
+    tracing::info!("set_onboarding_state success");
     Ok(())
 }
 
@@ -461,13 +473,15 @@ fn create_resource(
     path: Option<String>,
     content: Option<String>,
     tags: Option<String>,
-) -> Result<i64, String> {
+) -> AppResult<i64> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::create_resource(&conn, repository_id, title, type_, path, content, tags)
+    let repo = SqliteResourceRepository;
+    repo.create_resource(&conn, repository_id, title, type_, path, content, tags)
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, TS)]
+#[ts(export)]
 struct AddResourcePayload {
     #[serde(rename = "repositoryId")]
     repository_id: i64,
@@ -478,11 +492,12 @@ struct AddResourcePayload {
 }
 
 #[tauri::command]
-fn add_resource(state: State<DbState>, payload: AddResourcePayload) -> Result<Resource, String> {
+fn add_resource(state: State<DbState>, payload: AddResourcePayload) -> AppResult<Resource> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
 
-    let id = db::create_resource(
+    let repo = SqliteResourceRepository;
+    let id = repo.create_resource(
         &conn,
         Some(payload.repository_id),
         payload.title,
@@ -492,7 +507,7 @@ fn add_resource(state: State<DbState>, payload: AddResourcePayload) -> Result<Re
         None,
     )?;
 
-    let resources = db::get_resources(&conn, Some(payload.repository_id))?;
+    let resources = repo.get_resources(&conn, Some(payload.repository_id))?;
     let created = resources
         .into_iter()
         .find(|r| r.id == id)
@@ -564,13 +579,11 @@ fn pdf_to_markdown(input_path: String, output_path: String) -> Result<String, St
 }
 
 #[tauri::command]
-fn get_resources(
-    state: State<DbState>,
-    repository_id: Option<i64>,
-) -> Result<Vec<Resource>, String> {
+fn get_resources(state: State<DbState>, repository_id: Option<i64>) -> AppResult<Vec<Resource>> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    let resources = db::get_resources(&conn, repository_id)?;
+    let repo = SqliteResourceRepository;
+    let resources = repo.get_resources(&conn, repository_id)?;
     Ok(resources
         .into_iter()
         .map(|r| Resource {
@@ -586,17 +599,19 @@ fn get_resources(
         .collect())
 }
 #[tauri::command]
-fn create_link(state: State<DbState>, source_id: i64, target_id: i64) -> Result<i64, String> {
+fn create_link(state: State<DbState>, source_id: i64, target_id: i64) -> AppResult<i64> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::create_link(&conn, source_id, target_id)
+    let repo = SqliteLinkRepository;
+    repo.create_link(&conn, source_id, target_id)
 }
 
 #[tauri::command]
-fn get_links(state: State<DbState>) -> Result<Vec<Link>, String> {
+fn get_links(state: State<DbState>) -> AppResult<Vec<Link>> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::get_links(&conn)
+    let repo = SqliteLinkRepository;
+    repo.get_links(&conn)
 }
 
 #[tauri::command]
@@ -605,10 +620,11 @@ fn import_resource(
     state: State<DbState>,
     repository_id: i64,
     file_path: String,
-) -> Result<i64, String> {
-    println!(
-        "Backend: import_resource called. Repo: {}, Path: {}",
-        repository_id, file_path
+) -> AppResult<i64> {
+    tracing::info!(
+        repository_id = repository_id,
+        file_path = file_path,
+        "Backend: import_resource called"
     );
     let path = Path::new(&file_path);
     let filename = path
@@ -648,7 +664,8 @@ fn import_resource(
 
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::create_resource(
+    let repo = SqliteResourceRepository;
+    repo.create_resource(
         &conn,
         Some(repository_id),
         filename.to_string(),
@@ -666,11 +683,11 @@ fn process_text_to_nodes(
     repositoryId: i64,
     text: String,
     tags: Option<String>,
-) -> Result<Vec<i64>, String> {
-    println!(
-        "Backend: process_text_to_nodes called. Repo: {}, Text len: {}",
-        repositoryId,
-        text.len()
+) -> AppResult<Vec<i64>> {
+    tracing::info!(
+        repository_id = repositoryId,
+        text_len = text.len(),
+        "Backend: process_text_to_nodes called"
     );
     // Create a single note with the full text instead of splitting
     // This preserves markdown formatting and keeps content intact
@@ -688,7 +705,8 @@ fn process_text_to_nodes(
 
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    let id = db::create_resource(
+    let repo = SqliteResourceRepository;
+    let id = repo.create_resource(
         &conn,
         Some(repositoryId),
         title,
@@ -702,55 +720,57 @@ fn process_text_to_nodes(
 }
 
 #[tauri::command]
-fn get_user_profile(state: State<DbState>) -> Result<UserProfile, String> {
+fn get_user_profile(state: State<DbState>) -> AppResult<UserProfile> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
 
     // Try to get existing profile
-    let result = conn.query_row(
-        "SELECT user_id, name, university, avatar_path FROM user_profiles LIMIT 1",
-        [],
-        |row| {
-            Ok(UserProfile {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                university: row.get(2)?,
-                avatar_path: row.get(3)?,
-            })
-        },
-    );
+    let profile = conn
+        .query_row(
+            "SELECT user_id, name, university, avatar_path FROM user_profiles LIMIT 1",
+            [],
+            |row| {
+                Ok(UserProfile {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    university: row.get(2)?,
+                    avatar_path: row.get(3)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(|e| AppError::Database(e.to_string()))?;
 
-    match result {
-        Ok(profile) => Ok(profile),
-        Err(_) => {
-            // Profile doesn't exist, create a default one
-            // Get current user ID from session
-            let global_conn = state.db_manager.get_global_conn();
-            let global_conn_lock = global_conn.lock().unwrap();
-            let user_id: i64 = global_conn_lock
-                .query_row(
-                    "SELECT current_user_id FROM session_state WHERE id = 1",
-                    [],
-                    |row| row.get(0),
-                )
-                .map_err(|e| format!("Failed to get current user ID: {}", e))?;
-
-            drop(global_conn_lock);
-
-            // Insert default profile
-            conn.execute(
-                "INSERT INTO user_profiles (user_id, name, university) VALUES (?1, ?2, ?3)",
-                (user_id, "Student", ""),
+    if let Some(profile) = profile {
+        Ok(profile)
+    } else {
+        // Profile doesn't exist, create a default one
+        // Get current user ID from session
+        let global_conn = state.db_manager.get_global_conn();
+        let global_conn_lock = global_conn.lock().unwrap();
+        let user_id: i64 = global_conn_lock
+            .query_row(
+                "SELECT current_user_id FROM session_state WHERE id = 1",
+                [],
+                |row| row.get(0),
             )
-            .map_err(|e| format!("Failed to create default profile: {}", e))?;
+            .map_err(|e| AppError::Database(e.to_string()))?;
 
-            Ok(UserProfile {
-                id: user_id,
-                name: Some("Student".to_string()),
-                university: Some("".to_string()),
-                avatar_path: None,
-            })
-        }
+        drop(global_conn_lock);
+
+        // Insert default profile
+        conn.execute(
+            "INSERT INTO user_profiles (user_id, name, university) VALUES (?1, ?2, ?3)",
+            (user_id, "Student", ""),
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+        Ok(UserProfile {
+            id: user_id,
+            name: Some("Student".to_string()),
+            university: Some("".to_string()),
+            avatar_path: None,
+        })
     }
 }
 
@@ -854,10 +874,11 @@ fn set_app_settings(state: State<DbState>, settings: AppSettings) -> Result<(), 
 }
 
 #[tauri::command]
-fn get_repositories(state: State<DbState>) -> Result<Vec<Repository>, String> {
+fn get_repositories(state: State<DbState>) -> AppResult<Vec<Repository>> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::get_repositories(&conn)
+    let repo = SqliteRepositoryRepository;
+    repo.get_repositories(&conn)
 }
 
 #[tauri::command]
@@ -867,17 +888,19 @@ fn create_repository(
     code: Option<String>,
     semester: Option<String>,
     description: Option<String>,
-) -> Result<i64, String> {
+) -> AppResult<i64> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::create_repository(&conn, name, code, semester, description)
+    let repo = SqliteRepositoryRepository;
+    repo.create_repository(&conn, name, code, semester, description)
 }
 
 #[tauri::command]
 fn get_lectures(state: State<DbState>, repository_id: i64) -> Result<Vec<Lecture>, String> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::get_lectures(&conn, repository_id)
+    let repo = SqliteLectureRepository;
+    repo.get_lectures(&conn, repository_id)
 }
 
 #[tauri::command]
@@ -892,7 +915,8 @@ fn create_lecture(
 ) -> Result<i64, String> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::create_lecture(
+    let repo = SqliteLectureRepository;
+    repo.create_lecture(
         &conn,
         repository_id,
         title,
@@ -904,10 +928,11 @@ fn create_lecture(
 }
 
 #[tauri::command]
-fn delete_repository(state: State<DbState>, id: i64) -> Result<(), String> {
+fn delete_repository(state: State<DbState>, id: i64) -> AppResult<()> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::delete_repository(&conn, id)
+    let repo = SqliteRepositoryRepository;
+    repo.delete_repository(&conn, id)
 }
 
 #[tauri::command]
@@ -920,54 +945,62 @@ fn update_resource(
 ) -> Result<(), String> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::update_resource(&conn, id, title, content, tags)
+    let repo = SqliteResourceRepository;
+    repo.update_resource(&conn, id, title, content, tags)
 }
 
 #[tauri::command]
 fn delete_resource(state: State<DbState>, id: i64) -> Result<(), String> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::delete_resource(&conn, id)
+    let repo = SqliteResourceRepository;
+    repo.delete_resource(&conn, id)
 }
 
 #[tauri::command]
 fn delete_lecture(state: State<DbState>, id: i64) -> Result<(), String> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::delete_lecture(&conn, id)
+    let repo = SqliteLectureRepository;
+    repo.delete_lecture(&conn, id)
 }
 
 // ---------- Task Commands ----------
 #[tauri::command]
-fn create_task(state: State<DbState>, title: String) -> Result<i64, String> {
+fn create_task(state: State<DbState>, title: String) -> AppResult<i64> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::create_task(&conn, title)
+    let repo = SqliteTaskRepository;
+    repo.create_task(&conn, title)
 }
 
 #[tauri::command]
-fn get_tasks(state: State<DbState>) -> Result<Vec<Task>, String> {
+fn get_tasks(state: State<DbState>) -> AppResult<Vec<Task>> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::get_tasks(&conn)
+    let repo = SqliteTaskRepository;
+    repo.get_tasks(&conn)
 }
 
 #[tauri::command]
-fn update_task_status(state: State<DbState>, id: i64, completed: bool) -> Result<(), String> {
+fn update_task_status(state: State<DbState>, id: i64, completed: bool) -> AppResult<()> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::update_task_status(&conn, id, completed)
+    let repo = SqliteTaskRepository;
+    repo.update_task_status(&conn, id, completed)
 }
 
 #[tauri::command]
-fn delete_task(state: State<DbState>, id: i64) -> Result<(), String> {
+fn delete_task(state: State<DbState>, id: i64) -> AppResult<()> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::delete_task(&conn, id)
+    let repo = SqliteTaskRepository;
+    repo.delete_task(&conn, id)
 }
 
 // ---------- Planner Commands ----------
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, TS)]
+#[ts(export)]
 struct CreatePlannerEventPayload {
     #[serde(rename = "repositoryId")]
     repository_id: Option<i64>,
@@ -984,10 +1017,11 @@ struct CreatePlannerEventPayload {
 fn create_planner_event(
     state: State<DbState>,
     payload: CreatePlannerEventPayload,
-) -> Result<i64, String> {
+) -> AppResult<i64> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::create_planner_event(
+    let repo = SqlitePlannerRepository;
+    repo.create_planner_event(
         &conn,
         payload.repository_id,
         payload.title,
@@ -1003,28 +1037,32 @@ fn get_planner_events(
     state: State<DbState>,
     from: Option<String>,
     to: Option<String>,
-) -> Result<Vec<PlannerEvent>, String> {
+) -> AppResult<Vec<PlannerEvent>> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::get_planner_events(&conn, from, to)
+    let repo = SqlitePlannerRepository;
+    repo.get_planner_events(&conn, from, to)
 }
 
 #[tauri::command]
-fn delete_planner_event(state: State<DbState>, id: i64) -> Result<(), String> {
+fn delete_planner_event(state: State<DbState>, id: i64) -> AppResult<()> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::delete_planner_event(&conn, id)
+    let repo = SqlitePlannerRepository;
+    repo.delete_planner_event(&conn, id)
 }
 
 // ---------- Ollama / LLM Commands ----------
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct OllamaModelInfo {
     pub name: String,
     pub size: Option<u64>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ChatRequest {
     pub model: String,
     pub messages: Vec<ChatMessageInput>,
@@ -1032,13 +1070,15 @@ pub struct ChatRequest {
     pub max_tokens: Option<i32>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, TS)]
+#[ts(export)]
 pub struct ChatMessageInput {
     pub role: String,
     pub content: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ChatResult {
     pub role: String,
     pub content: String,
@@ -1100,7 +1140,8 @@ async fn chat_with_ollama(
 
 // ---------- Direct GGUF Inference Commands ----------
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ModelStatus {
     pub loaded: bool,
     pub model_path: Option<String>,
@@ -1202,7 +1243,8 @@ async fn import_youtube_playlist(
 
     // Add Lectures to the existing repository
     for (idx, video) in playlist_data.videos.into_iter().enumerate() {
-        db::create_lecture(
+        let repo = SqliteLectureRepository;
+        repo.create_lecture(
             &conn,
             repository_id,
             video.title,
@@ -1235,39 +1277,40 @@ fn create_course(
     code: Option<String>,
     semester: Option<String>,
     description: Option<String>,
-) -> Result<i64, String> {
+) -> AppResult<i64> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::create_repository(&conn, name, code, semester, description)
+    let repo = SqliteRepositoryRepository;
+    repo.create_repository(&conn, name, code, semester, description)
 }
 
 // ---------- Enhanced Node System Commands ----------
 
 #[tauri::command]
-fn get_link_types_cmd(state: State<DbState>) -> Result<Vec<LinkType>, String> {
+fn get_link_types_cmd(state: State<DbState>) -> AppResult<Vec<LinkType>> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::get_link_types(&conn)
+    let repo = SqliteLinkRepository;
+    repo.get_link_types(&conn)
 }
 
 #[tauri::command]
 fn get_resource_metadata_cmd(
     state: State<DbState>,
     resource_id: i64,
-) -> Result<Option<ResourceMetadata>, String> {
+) -> AppResult<Option<ResourceMetadata>> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::get_resource_metadata(&conn, resource_id)
+    let repo = SqliteLinkRepository;
+    repo.get_resource_metadata(&conn, resource_id)
 }
 
 #[tauri::command]
-fn update_resource_metadata_cmd(
-    state: State<DbState>,
-    meta: ResourceMetadata,
-) -> Result<(), String> {
+fn update_resource_metadata_cmd(state: State<DbState>, meta: ResourceMetadata) -> AppResult<()> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::update_resource_metadata(&conn, meta)
+    let repo = SqliteLinkRepository;
+    repo.update_resource_metadata(&conn, meta)
 }
 
 #[tauri::command]
@@ -1278,10 +1321,11 @@ fn create_link_v2_cmd(
     type_id: Option<i64>,
     strength: Option<f64>,
     bidirectional: bool,
-) -> Result<i64, String> {
+) -> AppResult<i64> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::create_link_v2(
+    let repo = SqliteLinkRepository;
+    repo.create_link_v2(
         &conn,
         source_id,
         target_id,
@@ -1292,10 +1336,11 @@ fn create_link_v2_cmd(
 }
 
 #[tauri::command]
-fn get_links_v2_cmd(state: State<DbState>) -> Result<Vec<LinkV2>, String> {
+fn get_links_v2_cmd(state: State<DbState>) -> AppResult<Vec<LinkV2>> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::get_links_v2(&conn)
+    let repo = SqliteLinkRepository;
+    repo.get_links_v2(&conn)
 }
 
 #[tauri::command]
@@ -1304,10 +1349,11 @@ fn generate_large_graph(
     repository_id: i64,
     node_count: i64,
     edges_per_node: i64,
-) -> Result<(), String> {
+) -> AppResult<()> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::generate_large_graph(&conn, repository_id, node_count, edges_per_node)
+    let repo = SqliteGraphRepository;
+    repo.generate_large_graph(&conn, repository_id, node_count, edges_per_node)
 }
 
 // ---------- Flashcard Commands ----------
@@ -1319,31 +1365,35 @@ fn create_flashcard(
     front: String,
     back: String,
     heading_path: Option<String>,
-) -> Result<i64, String> {
+) -> AppResult<i64> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::create_flashcard(&conn, note_id, front, back, heading_path)
+    let repo = SqliteFlashcardRepository;
+    repo.create_flashcard(&conn, note_id, front, back, heading_path)
 }
 
 #[tauri::command]
-fn get_flashcards(state: State<DbState>, note_id: i64) -> Result<Vec<Flashcard>, String> {
+fn get_flashcards(state: State<DbState>, note_id: i64) -> AppResult<Vec<Flashcard>> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::get_flashcards_by_note(&conn, note_id)
+    let repo = SqliteFlashcardRepository;
+    repo.get_flashcards_by_note(&conn, note_id)
 }
 
 #[tauri::command]
-fn get_all_flashcards(state: State<DbState>) -> Result<Vec<Flashcard>, String> {
+fn get_all_flashcards(state: State<DbState>) -> AppResult<Vec<Flashcard>> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::get_all_flashcards(&conn)
+    let repo = SqliteFlashcardRepository;
+    repo.get_all_flashcards(&conn)
 }
 
 #[tauri::command]
-fn delete_flashcard(state: State<DbState>, id: i64) -> Result<(), String> {
+fn delete_flashcard(state: State<DbState>, id: i64) -> AppResult<()> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::delete_flashcard(&conn, id)
+    let repo = SqliteFlashcardRepository;
+    repo.delete_flashcard(&conn, id)
 }
 
 #[tauri::command]
@@ -1531,6 +1581,31 @@ async fn generate_presentation(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize tracing with file output
+    let app_data_dir = std::env::current_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        .join("app.log");
+
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "uni_study_app=info".into()),
+        )
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(move || {
+                    std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(&app_data_dir)
+                        .expect("Failed to open log file")
+                })
+                .with_ansi(false),
+        )
+        .init();
+
+    tracing::info!("Starting Uni Study App");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -1815,7 +1890,8 @@ fn start_study_session(
 ) -> Result<i64, String> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::create_study_session(&conn, repository_id, start_at, is_break)
+    let repo = SqliteStudySessionRepository;
+    repo.create_study_session(&conn, repository_id, start_at, is_break)
 }
 
 #[tauri::command]
@@ -1827,7 +1903,8 @@ fn stop_study_session(
 ) -> Result<(), String> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::stop_study_session(&conn, id, end_at, duration)
+    let repo = SqliteStudySessionRepository;
+    repo.stop_study_session(&conn, id, end_at, duration)
 }
 
 #[tauri::command]
@@ -1837,7 +1914,8 @@ fn get_study_sessions(
 ) -> Result<Vec<StudySession>, String> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::get_study_sessions(&conn, from)
+    let repo = SqliteStudySessionRepository;
+    repo.get_study_sessions(&conn, from)
 }
 
 #[tauri::command]
@@ -1849,21 +1927,24 @@ fn create_d_day(
 ) -> Result<i64, String> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::create_d_day(&conn, title, target_date, color)
+    let repo = SqliteDDayRepository;
+    repo.create_d_day(&conn, title, target_date, color)
 }
 
 #[tauri::command]
 fn get_d_days(state: State<DbState>) -> Result<Vec<DDay>, String> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::get_d_days(&conn)
+    let repo = SqliteDDayRepository;
+    repo.get_d_days(&conn)
 }
 
 #[tauri::command]
 fn delete_d_day(state: State<DbState>, id: i64) -> Result<(), String> {
     let conn_arc = state.db_manager.get_active_profile_db()?;
     let conn = conn_arc.lock().unwrap();
-    db::delete_d_day(&conn, id)
+    let repo = SqliteDDayRepository;
+    repo.delete_d_day(&conn, id)
 }
 
 #[tauri::command]

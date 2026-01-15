@@ -40,7 +40,7 @@ interface KnowledgeGraphProps {
     onLinkNode?: (node: any, pos?: { x: number, y: number }) => void;
 }
 
-export function KnowledgeGraph({ data, onNodeClick, onEditNode, onDeleteNode, onLinkNode }: KnowledgeGraphProps) {
+export function KnowledgeGraph({ data, onNodeClick, onOpenNode, onEditNode, onDeleteNode, onLinkNode }: KnowledgeGraphProps) {
     const { settings } = useAppSettings();
     const graphRef = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);

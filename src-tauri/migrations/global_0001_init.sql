@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS session_state (
     FOREIGN KEY(last_user_id) REFERENCES users(id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_session_state_current_user_id ON session_state(current_user_id);
+CREATE INDEX IF NOT EXISTS idx_session_state_last_user_id ON session_state(last_user_id);
+
 CREATE TABLE IF NOT EXISTS profile_registry (
     user_id INTEGER PRIMARY KEY,
     db_path TEXT NOT NULL,

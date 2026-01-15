@@ -10,7 +10,7 @@ interface AIDocumentReviewProps {
     generatedContent: string;
     onRefine: (instructions: string) => void;
     onExport: (format: string) => void;
-    onSave: (repositoryId: string) => void;
+    onSave: (repositoryId: string, content: string) => void;
     isGenerating?: boolean;
     error?: string;
 }
@@ -61,7 +61,7 @@ export function AIDocumentReview({
 
     const handleSave = () => {
         if (selectedRepository) {
-            onSave(selectedRepository);
+            onSave(selectedRepository, editedContent);
         }
     };
 
