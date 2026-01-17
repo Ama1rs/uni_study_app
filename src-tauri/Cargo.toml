@@ -21,6 +21,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }
@@ -29,12 +30,21 @@ reqwest = { version = "0.11", features = ["json"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
 parking_lot = "0.12"
 argon2 = "0.5"
-rand_core = "0.6"
+rand_core = { version = "0.6", features = ["getrandom"] }
+base64 = "0.22"
 
-# Pure Rust inference (no CMake/LLVM required)
-candle-core = "0.8"
-candle-transformers = "0.8"
-tokenizers = "0.20"
-hf-hub = "0.3"
+lopdf = "0.38.0"
+image = "0.25"
+oxipng = "10"
+
+# llama.cpp bindings
+llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", branch = "main" }
+llama-cpp-sys-2 = { git = "https://github.com/utilityai/llama-cpp-rs", branch = "main" }
+chrono = { version = "0.4.42", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+ts-rs = { version = "10.0.0", features = ["serde-compat", "chrono-impl", "uuid-impl"] }
+thiserror = "1.0"
+validator = { version = "0.19", features = ["derive"] }
 
 

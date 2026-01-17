@@ -4,11 +4,11 @@ import { invoke } from '@tauri-apps/api/core';
 window.testCreateEvent = async () => {
     try {
         const id = await invoke('create_planner_event', {
-            repositoryId: null,
+            repository_id: null,
             title: 'Demo',
             description: 'test',
-            startAt: new Date().toISOString(),
-            endAt: new Date(Date.now() + 3600000).toISOString(),
+            start_at: new Date().toISOString(),
+            end_at: new Date(Date.now() + 3600000).toISOString(),
             recurrence: null
         });
         console.log('Planner event created, id =', id);
