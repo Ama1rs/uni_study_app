@@ -142,70 +142,66 @@ export function Library({ onOpenBook }: LibraryProps) {
     return (
         <div className="flex flex-col h-full w-full bg-bg-primary">
             {/* Header */}
-            <div className="flex-shrink-0 px-6 py-4 border-b border-border bg-bg-surface/50 backdrop-blur-sm sticky top-0 z-10">
-                <div className="flex items-center justify-between mb-4">
-                    <div>
-                        <h1 className="text-2xl font-bold text-text-primary mb-1">My Library</h1>
-                        <p className="text-sm text-text-secondary">
-                            Import EPUB or PDF books and continue reading where you left off.
-                        </p>
-                    </div>
+            <div className="flex-shrink-0 px-6 py-3 border-b border-border/30 bg-bg-surface/50 backdrop-blur-sm sticky top-0 z-10">
+                <div className="flex items-center justify-between gap-4">
+                    <h1 className="text-xl font-bold text-text-primary whitespace-nowrap">My Library</h1>
 
-                    <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2 mr-4">
-                            <span className="text-sm text-text-tertiary">Sort by:</span>
+                    <div className="flex items-center gap-3 flex-1 justify-end">
+                        {/* Search Bar - Compact */}
+                        <div className="relative max-w-md w-full">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" size={16} />
+                            <input
+                                id="library-search"
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search library..."
+                                className="w-full h-9 pl-9 pr-4 rounded-lg bg-bg-surface border border-border text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent/40 transition-all"
+                            />
+                        </div>
+
+                        <div className="h-6 w-px bg-border/60 mx-1" />
+
+                        <div className="flex items-center gap-2">
                             <select
                                 value={sortMode}
                                 onChange={(e) => setSortMode(e.target.value as SortMode)}
-                                className="bg-bg-hover border border-border rounded-lg px-2 py-1.5 text-sm outline-none focus:border-accent"
+                                className="bg-bg-hover border border-border rounded-lg px-2 h-9 text-xs outline-none focus:border-accent focus:ring-1 focus:ring-accent/50"
                             >
                                 <option value="recent">Recent</option>
                                 <option value="title">Title</option>
                                 <option value="progress">Progress</option>
                             </select>
-                        </div>
 
-                        <div className="flex items-center gap-1 p-1 rounded-lg bg-bg-hover border border-border/50">
-                            <button
-                                onClick={() => setViewMode('grid')}
-                                className={`p-2 rounded-md transition-all ${viewMode === 'grid'
-                                    ? 'bg-bg-surface text-accent shadow-sm'
-                                    : 'text-text-secondary hover:text-text-primary'
-                                    }`}
-                                title="Grid View"
-                            >
-                                <Grid size={18} />
-                            </button>
-                            <button
-                                onClick={() => setViewMode('list')}
-                                className={`p-2 rounded-md transition-all ${viewMode === 'list'
-                                    ? 'bg-bg-surface text-accent shadow-sm'
-                                    : 'text-text-secondary hover:text-text-primary'
-                                    }`}
-                                title="List View"
-                            >
-                                <ListIcon size={18} />
-                            </button>
-                        </div>
+                            <div className="flex items-center gap-1 p-1 rounded-lg bg-bg-hover border border-border/50 h-9">
+                                <button
+                                    onClick={() => setViewMode('grid')}
+                                    className={`p-1.5 rounded-md transition-all ${viewMode === 'grid'
+                                        ? 'bg-bg-surface text-accent shadow-sm'
+                                        : 'text-text-secondary hover:text-text-primary'
+                                        }`}
+                                    title="Grid View"
+                                >
+                                    <Grid size={16} />
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('list')}
+                                    className={`p-1.5 rounded-md transition-all ${viewMode === 'list'
+                                        ? 'bg-bg-surface text-accent shadow-sm'
+                                        : 'text-text-secondary hover:text-text-primary'
+                                        }`}
+                                    title="List View"
+                                >
+                                    <ListIcon size={16} />
+                                </button>
+                            </div>
 
-                        <Button variant="primary" size="default" aria-label="Import books to library">
-                            <Upload size={18} />
-                            Import Books
-                        </Button>
+                            <Button variant="primary" size="compact" className="h-9 px-4" aria-label="Import books to library">
+                                <Upload size={16} className="mr-2" />
+                                Import
+                            </Button>
+                        </div>
                     </div>
-                </div>
-
-                {/* Search Bar */}
-                <div className="relative max-w-2xl">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary" size={20} />
-                    <input
-                        id="library-search"
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search your library... (/)"
-                        className="w-full h-12 pl-12 pr-4 rounded-xl bg-bg-surface border border-border text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent/40 focus:ring-4 focus:ring-accent/5 transition-all"
-                    />
                 </div>
             </div>
 

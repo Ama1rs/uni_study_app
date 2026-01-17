@@ -4,7 +4,7 @@ import { Resource, Flashcard } from '../types/node-system';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, Layers, ChevronRight, Brain, ArrowRight, Flame, Trophy, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { DealerMode } from '../features/flashcards/DealerMode';
+
 
 interface Deck {
     id: number | 'all';
@@ -29,7 +29,7 @@ export function FlashcardsPage() {
     const [isFlipped, setIsFlipped] = useState(false);
     const [sessionStats, setSessionStats] = useState({ reviewed: 0, correct: 0 });
     const [streak, setStreak] = useState(0);
-    const [dealerMode, setDealerMode] = useState(false);
+
 
 
     useEffect(() => {
@@ -161,45 +161,11 @@ export function FlashcardsPage() {
         const currentCard = studyQueue[currentCardIndex];
         const progress = ((currentCardIndex) / studyQueue.length) * 100;
 
-        // Dealer Mode View
-        if (dealerMode) {
-            return (
-                <div className="flex-1 w-full flex flex-col bg-bg-primary relative overflow-hidden">
-                    {/* Header with mode toggle */}
-                    <div className="absolute top-8 left-8 z-50 flex items-center gap-4">
-                        <button
-                            onClick={() => setView('preview')}
-                            className="group flex items-center gap-2 text-text-secondary hover:text-text-primary transition-all px-4 py-2 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/5 backdrop-blur-sm"
-                        >
-                            <ChevronRight className="rotate-180 group-hover:-translate-x-1 transition-transform" size={20} />
-                            <span className="font-medium">End Session</span>
-                        </button>
 
-                        <button
-                            onClick={() => setDealerMode(false)}
-                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-accent/30 transition-all text-text-secondary hover:text-text-primary backdrop-blur-sm"
-                        >
-                            <Sparkles size={16} />
-                            <span className="text-sm font-medium">Flat Mode</span>
-                        </button>
-                    </div>
-
-                    <DealerMode
-                        currentCard={currentCard}
-                        isFlipped={isFlipped}
-                        onFlip={() => setIsFlipped(!isFlipped)}
-                        onRate={handleRate}
-                        progress={progress}
-                        currentIndex={currentCardIndex}
-                        totalCards={studyQueue.length}
-                    />
-                </div>
-            );
-        }
 
         // Flat Mode View (Original)
         return (
-            <div className="flex-1 w-full flex flex-col bg-bg-primary relative overflow-hidden">
+            <div className="flex-1 w-full flex flex-col bg-bg-base relative overflow-hidden">
                 {/* Stats / Progress Header */}
                 <div className="p-8 flex items-center justify-between z-10 bg-gradient-to-b from-bg-primary/80 to-transparent backdrop-blur-sm">
                     <button
@@ -210,14 +176,7 @@ export function FlashcardsPage() {
                         <span className="font-medium">End Session</span>
                     </button>
                     <div className="flex items-center gap-4">
-                        {/* Dealer Mode Toggle */}
-                        <button
-                            onClick={() => setDealerMode(true)}
-                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent/10 hover:bg-accent/20 border border-accent/20 hover:border-accent/40 transition-all text-accent hover:scale-105 active:scale-95"
-                        >
-                            <Sparkles size={16} />
-                            <span className="text-sm font-bold">Dealer Mode</span>
-                        </button>
+
 
                         <div className="flex flex-col items-end gap-2">
                             <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-widest text-text-tertiary">
@@ -351,43 +310,48 @@ export function FlashcardsPage() {
 
     if (view === 'preview' && selectedDeck) {
         return (
-            <div className="flex-1 w-full bg-bg-primary flex flex-col">
-                <header className="p-8 border-b border-border bg-bg-surface">
-                    <button
-                        onClick={() => setView('library')}
-                        className="group flex items-center gap-2 text-text-tertiary hover:text-text-primary transition-all mb-6 text-xs font-bold uppercase tracking-widest"
-                    >
-                        <ChevronRight className="rotate-180 group-hover:-translate-x-1 transition-transform" size={16} />
-                        <span>Library</span>
-                    </button>
-                    <div className="flex items-end justify-between">
-                        <div className="flex items-center gap-5">
+            <div className="flex-1 w-full bg-bg-base flex flex-col">
+                <header className="px-6 py-4 border-b border-border/30 bg-bg-base flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => setView('library')}
+                            className="p-2 rounded-lg hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors"
+                            title="Back to Library"
+                        >
+                            <ChevronRight className="rotate-180" size={20} />
+                        </button>
+
+                        <div className="h-6 w-px bg-border/50" />
+
+                        <div className="flex items-center gap-3">
                             <div className={cn(
-                                "p-4 rounded-2xl border border-border bg-bg-primary",
-                                selectedDeck.id === 'all' ? "text-purple-400" : "text-accent"
+                                "p-2 rounded-lg border border-border/30",
+                                selectedDeck.id === 'all' ? "text-purple-400 bg-purple-400/5" : "text-accent bg-accent/5"
                             )}>
-                                {selectedDeck.id === 'all' ? <Layers size={32} /> : <BookOpen size={32} />}
+                                {selectedDeck.id === 'all' ? <Layers size={18} /> : <BookOpen size={18} />}
                             </div>
+
                             <div>
-                                <h2 className="text-3xl font-bold text-text-primary mb-1">
+                                <h1 className="text-base font-semibold text-text-primary leading-none mb-0.5">
                                     {selectedDeck.title}
-                                </h2>
-                                <p className="text-text-tertiary font-bold uppercase tracking-[0.2em] text-[10px]">
-                                    Dataset: {selectedDeck.count} Knowledge Points
+                                </h1>
+                                <p className="text-[10px] font-medium uppercase tracking-wider text-text-tertiary">
+                                    {selectedDeck.count} Cards
                                 </p>
                             </div>
                         </div>
-                        <button
-                            onClick={() => startStudy(selectedDeck)}
-                            className="px-8 py-4 bg-accent text-black font-bold rounded-xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-accent/10 flex items-center gap-3"
-                        >
-                            <Brain size={20} />
-                            Start Mastery Session
-                        </button>
                     </div>
+
+                    <button
+                        onClick={() => startStudy(selectedDeck)}
+                        className="px-4 py-2 bg-accent text-black font-semibold text-sm rounded-lg hover:opacity-90 transition-all flex items-center gap-2"
+                    >
+                        <Brain size={16} />
+                        Start Session
+                    </button>
                 </header>
 
-                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar">
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 justify-items-center">
                         {selectedDeck.id === 'all' ? (
                             // Grouped view for "All Collected Packs"
@@ -457,79 +421,76 @@ export function FlashcardsPage() {
     }
 
     return (
-        <div className="flex-1 w-full h-full flex flex-col bg-bg-primary overflow-y-auto custom-scrollbar">
-            {/* Document-style Header */}
-            <div className="pt-8 pb-6 px-10 border-b border-border">
+        <div className="flex-1 w-full h-full flex flex-col bg-bg-base overflow-y-auto custom-scrollbar">
+            {/* Minimal Header */}
+            <div className="flex-shrink-0 px-6 py-4 border-b border-border/30 bg-bg-base">
                 <motion.div
-                    initial={{ opacity: 0, y: 10 }}
+                    initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5 }}
-                    className="max-w-4xl mx-auto w-full"
+                    transition={{ duration: 0.3 }}
+                    className="flex items-center justify-between"
                 >
-                    <div className="flex items-start justify-between mb-2">
-                        <div>
-                            <h1 className="text-3xl font-bold text-text-primary tracking-tight mb-3">Flashcard Library</h1>
-                            <div className="flex items-center gap-6 text-sm text-text-tertiary">
-                                <span className="flex items-center gap-2">
-                                    <Layers size={14} />
-                                    {decks.filter(d => d.id !== 'all').length} Decks
-                                </span>
-                                <span className="flex items-center gap-2">
-                                    <Trophy size={14} />
-                                    {decks.find(d => d.id === 'all')?.count || 0} Cards
-                                </span>
-                                <span className="flex items-center gap-2 text-accent">
-                                    <Flame size={14} />
-                                    {streak} Day Streak
-                                </span>
-                            </div>
-                        </div>
+                    <h1 className="text-lg font-bold text-text-primary">Flashcard Library</h1>
+
+                    <div className="flex items-center gap-4 text-xs text-text-tertiary">
+                        <span className="flex items-center gap-1.5">
+                            <Layers size={14} className="text-text-secondary" />
+                            {decks.filter(d => d.id !== 'all').length} Decks
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                            <Trophy size={14} className="text-text-secondary" />
+                            {decks.find(d => d.id === 'all')?.count || 0} Cards
+                        </span>
+                        {streak > 0 && (
+                            <span className="flex items-center gap-1.5 text-accent">
+                                <Flame size={14} />
+                                {streak} Day Streak
+                            </span>
+                        )}
                     </div>
                 </motion.div>
             </div>
 
             {/* Main Content - List View */}
-            <div className="flex-1 px-10">
-                <div className="max-w-4xl mx-auto w-full py-6">
-                    <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-sm font-bold uppercase tracking-widest text-text-tertiary">Your Collections</h2>
-                        <button className="text-[10px] font-bold text-text-tertiary hover:text-text-primary transition-colors">SORT BY: RECENT</button>
+            <div className="flex-1 px-6 py-6">
+                <div className="w-full">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">Your Collections</h2>
+                        <button className="text-[10px] font-medium text-text-tertiary hover:text-text-primary transition-colors">SORT BY: RECENT</button>
                     </div>
 
-                    <div className="flex flex-col">
+                    <div className="space-y-3">
                         <AnimatePresence>
                             {decks.map((deck, idx) => (
                                 <motion.div
                                     key={deck.id}
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: idx * 0.05 }}
+                                    transition={{ delay: idx * 0.03 }}
                                     onClick={() => openPreview(deck.id)}
-                                    className="group flex items-center justify-between py-4 border-b border-border/50 cursor-pointer hover:bg-bg-surface/30 -mx-4 px-4 rounded-lg transition-colors"
+                                    className="group flex items-center justify-between px-4 py-4 border border-border/30 rounded-xl cursor-pointer hover:border-accent/40 hover:bg-bg-surface/30 transition-all"
                                 >
-                                    <div className="flex items-center gap-5">
+                                    <div className="flex items-center gap-4 flex-1 min-w-0">
                                         <div className={cn(
-                                            "p-3 rounded-md bg-transparent border border-border group-hover:border-accent/50 transition-colors text-text-tertiary group-hover:text-accent",
-                                            deck.id === 'all' && "text-purple-400 group-hover:text-purple-400 group-hover:border-purple-400/50"
+                                            "p-2.5 rounded-lg border border-border/30 transition-colors flex-shrink-0",
+                                            deck.id === 'all'
+                                                ? "text-purple-400 group-hover:border-purple-400/50 group-hover:bg-purple-400/5"
+                                                : "text-text-secondary group-hover:border-accent/50 group-hover:text-accent group-hover:bg-accent/5"
                                         )}>
-                                            {deck.id === 'all' ? <Layers size={20} /> : <BookOpen size={20} />}
+                                            {deck.id === 'all' ? <Layers size={18} /> : <BookOpen size={18} />}
                                         </div>
-                                        <div>
-                                            <h3 className="text-lg font-medium text-text-primary group-hover:text-accent transition-colors">
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="text-base font-medium text-text-primary group-hover:text-accent transition-colors truncate">
                                                 {deck.title}
                                             </h3>
-                                            <div className="flex items-center gap-3 mt-1 text-xs text-text-tertiary">
+                                            <div className="flex items-center gap-2 mt-0.5 text-xs text-text-tertiary">
                                                 <span>{deck.count} cards</span>
-                                                {deck.id === 'all' && <span className="text-purple-400/80">• Smart Collection</span>}
+                                                {deck.id === 'all' && <span className="text-purple-400/70">• Smart Collection</span>}
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center gap-6 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-                                        <div className="flex flex-col items-end gap-1">
-                                            <span className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary">Last Studied</span>
-                                            <span className="text-xs font-mono text-text-primary">2h ago</span>
-                                        </div>
+                                    <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-all">
                                         <ChevronRight size={16} className="text-text-tertiary" />
                                     </div>
                                 </motion.div>
@@ -537,8 +498,8 @@ export function FlashcardsPage() {
                         </AnimatePresence>
 
                         {decks.length === 0 && (
-                            <div className="py-20 text-center opacity-40">
-                                <p className="text-sm font-medium text-text-tertiary">No decks found. Create a note to generate flashcards.</p>
+                            <div className="py-20 text-center">
+                                <p className="text-sm text-text-tertiary">No decks found. Create a note to generate flashcards.</p>
                             </div>
                         )}
                     </div>

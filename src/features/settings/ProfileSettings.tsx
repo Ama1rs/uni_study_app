@@ -61,10 +61,7 @@ export function ProfileSettings() {
 
     return (
         <div className="p-6 space-y-6">
-            <div>
-                <h2 className="text-xl font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Profile Settings</h2>
-                <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>Manage your personal information</p>
-            </div>
+
 
             <div className="space-y-4">
                 <div className="space-y-2">

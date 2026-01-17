@@ -161,7 +161,7 @@ pub fn generate_response(
         return Err("Prompt resulted in no tokens.".to_string());
     }
 
-    let mut output = String::new();
+    let mut output_bytes = Vec::new();
 
     // We use a batch for decoding
     let mut batch = LlamaBatch::new(n_ctx as usize, 1);
@@ -214,11 +214,11 @@ pub fn generate_response(
             break;
         }
 
-        // Decode token to string
+        // Decode token to bytes
         let piece = model
-            .token_to_str(token, Special::Plaintext)
-            .map_err(|e| format!("Failed to decode token: {}", e))?;
-        output.push_str(&piece);
+            .token_to_bytes(token, Special::Plaintext)
+            .map_err(|e| format!("Failed to decode token bytes: {}", e))?;
+        output_bytes.extend_from_slice(&piece);
         tokens_generated += 1;
 
         // Prepare batch for next token
@@ -239,6 +239,9 @@ pub fn generate_response(
     } else {
         0.0
     };
+
+    // Convert whole byte sequence to string
+    let output = String::from_utf8_lossy(&output_bytes).to_string();
 
     Ok(InferenceResult {
         content: output,

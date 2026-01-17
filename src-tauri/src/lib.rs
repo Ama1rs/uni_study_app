@@ -1609,6 +1609,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             let db_manager =
                 DatabaseManager::new(app.handle().clone()).expect("failed to init db manager");

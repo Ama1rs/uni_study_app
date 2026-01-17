@@ -28,31 +28,22 @@ export function ThemeCustomizer() {
     };
 
     return (
-        <div className="p-6 space-y-8 animate-fade-in-up">
-            <div className="flex justify-between items-start">
-                <div>
-                    <h2 className="text-2xl font-bold tracking-tight mb-2" style={{ color: 'var(--text-primary)' }}>
-                        Appearance & Themes
-                    </h2>
-                    <p className="text-sm opacity-60" style={{ color: 'var(--text-primary)' }}>
-                        Personalize your workspace with surgical precision
-                    </p>
-                </div>
-
-                {/* Contrast Toggle */}
+        <div className="p-4 space-y-5 animate-fade-in-up max-w-5xl mx-auto">
+            {/* Contrast Toggle */}
+            <div className="flex justify-end mb-4">
                 <button
                     onClick={() => setHighContrast(!highContrast)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 transition-all ${highContrast
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 transition-all shrink-0 ${highContrast
                         ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]'
                         : 'border-[var(--border)] hover:border-[var(--border-light)] opacity-60'}`}
                 >
-                    <Zap size={16} fill={highContrast ? 'currentColor' : 'none'} />
-                    <span className="text-sm font-bold uppercase tracking-wider">Contrast</span>
+                    <Zap size={15} fill={highContrast ? 'currentColor' : 'none'} />
+                    <span className="text-[11px] font-bold uppercase tracking-widest">Contrast</span>
                 </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-8">
-                <div className="space-y-8">
+            <div className="grid grid-cols-2 gap-6 items-start">
+                <div className="space-y-5">
                     {/* Mode & Theme Style */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-3">
@@ -96,44 +87,44 @@ export function ThemeCustomizer() {
                         <h3 className="text-[10px] font-bold tracking-widest uppercase opacity-40 ml-1">CUSTOMIZE COMPONENT</h3>
                         <div className="flex flex-col gap-2">
                             {[
-                                { id: 'accent', label: 'Accent Color', icon: Palette, desc: 'Buttons, borders, highlights' },
-                                { id: 'background', label: 'Main Canvas', icon: Layout, desc: 'Primary workspace background' },
-                                { id: 'surface', label: 'Surface Panels', icon: Box, desc: 'Cards, sidebars, modals' },
+                                { id: 'accent', label: 'Accent Color', icon: Palette, desc: 'Highlights' },
+                                { id: 'background', label: 'Main Canvas', icon: Layout, desc: 'Background' },
+                                { id: 'surface', label: 'Surface Panels', icon: Box, desc: 'Cards' },
                             ].map((comp) => (
                                 <button
                                     key={comp.id}
                                     onClick={() => setActiveComponent(comp.id as ComponentToColor)}
-                                    className={`group flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left ${activeComponent === comp.id
-                                        ? 'border-[var(--accent)] bg-[var(--accent)]/5 shadow-[0_0_20px_rgba(0,0,0,0.1)]'
+                                    className={`group flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${activeComponent === comp.id
+                                        ? 'border-[var(--accent)] bg-[var(--accent)]/5 shadow-sm'
                                         : 'border-[var(--border)] hover:border-[var(--border-light)]'
                                         }`}
                                 >
-                                    <div className={`p-2.5 rounded-xl transition-colors ${activeComponent === comp.id ? 'bg-[var(--accent)] text-white' : 'bg-white/5 text-[var(--text-secondary)]'}`}>
-                                        <comp.icon size={20} />
+                                    <div className={`p-2 rounded-lg transition-colors ${activeComponent === comp.id ? 'bg-[var(--accent)] text-white' : 'bg-white/5 text-[var(--text-secondary)]'}`}>
+                                        <comp.icon size={16} />
                                     </div>
-                                    <div className="flex-1">
+                                    <div className="flex-1 flex items-center justify-between">
                                         <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{comp.label}</div>
-                                        <div className="text-[10px] opacity-40 uppercase tracking-wider">{comp.desc}</div>
+                                        {activeComponent === comp.id && <Sparkles size={14} className="text-[var(--accent)] opacity-50" />}
                                     </div>
-                                    {activeComponent === comp.id && <Sparkles size={16} className="text-[var(--accent)] opacity-50" />}
                                 </button>
                             ))}
                         </div>
                     </div>
                 </div>
 
-                {/* Color Picker Section */}
-                <div className="flex flex-col items-center bg-black/10 rounded-[2rem] p-8 border border-white/5 shadow-2xl backdrop-blur-md">
-                    <ColorPicker
-                        color={getCurrentColor()}
-                        onChange={handleColorChange}
-                        size={220}
-                    />
+                {/* Color Picker Section - Mockup Container */}
+                <div className="flex flex-col items-center justify-center bg-black/5 rounded-[2rem] p-6 border border-white/5 shadow-inner min-h-[320px] w-full">
+                    <div className="mb-6 relative">
+                        <ColorPicker
+                            color={getCurrentColor()}
+                            onChange={handleColorChange}
+                            size={180}
+                        />
+                    </div>
 
                     {activeComponent === 'accent' && (
-                        <div className="mt-8 w-full border-t border-white/5 pt-6">
-                            <p className="text-[9px] font-bold opacity-30 tracking-widest text-center mb-4 uppercase">QUICK PRESETS</p>
-                            <div className="flex justify-center gap-3">
+                        <div className="w-full border-t border-white/5 pt-4 px-2">
+                            <div className="grid grid-cols-6 gap-3 justify-items-center">
                                 {(Object.keys(ACCENT_COLORS) as PresetAccentColor[]).map((colorKey) => {
                                     const color = ACCENT_COLORS[colorKey];
                                     const isActive = accent === colorKey;
@@ -141,11 +132,11 @@ export function ThemeCustomizer() {
                                         <button
                                             key={colorKey}
                                             onClick={() => setAccent(colorKey)}
-                                            className={`w-10 h-10 rounded-xl transition-all border-2 flex items-center justify-center ${isActive ? 'border-white scale-110 shadow-lg' : 'border-transparent hover:scale-105 opacity-60 hover:opacity-100'}`}
+                                            className={`w-6 h-6 rounded-full transition-all border flex items-center justify-center ${isActive ? 'border-white scale-125 shadow-md' : 'border-transparent hover:scale-110 opacity-80 hover:opacity-100'}`}
                                             style={{ backgroundColor: color[mode] }}
                                             title={color.name}
                                         >
-                                            {isActive && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                                            {isActive && <div className="w-1 h-1 bg-white rounded-full" />}
                                         </button>
                                     );
                                 })}
@@ -154,10 +145,10 @@ export function ThemeCustomizer() {
                     )}
 
                     {(activeComponent === 'background' || activeComponent === 'surface') && (
-                        <div className="mt-8 border-t border-white/5 pt-6 w-full text-center">
+                        <div className="mt-4 border-t border-white/5 pt-4 w-full text-center">
                             <button
                                 onClick={() => activeComponent === 'background' ? setCustomBg(null) : setCustomSurface(null)}
-                                className="px-6 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all opacity-40 hover:opacity-100"
+                                className="px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all opacity-40 hover:opacity-100"
                                 style={{ color: 'var(--text-primary)' }}
                             >
                                 Reset {activeComponent} to theme default
@@ -167,55 +158,7 @@ export function ThemeCustomizer() {
                 </div>
             </div>
 
-            {/* Preview Section */}
-            <div className="pt-6 border-t border-[var(--border)]">
-                <div className="flex items-center gap-2 mb-6">
-                    <div className="h-[1px] flex-1 bg-[var(--border)]" />
-                    <p className="text-[10px] font-bold opacity-30 tracking-widest uppercase">REAL-TIME PREVIEW</p>
-                    <div className="h-[1px] flex-1 bg-[var(--border)]" />
-                </div>
 
-                <div className="p-8 rounded-[2rem] border-2 shadow-inner overflow-hidden"
-                    style={{
-                        backgroundColor: 'var(--bg-primary)',
-                        borderColor: 'var(--border)',
-                        backgroundImage: `radial-gradient(circle at top right, var(--accent-dim), transparent)`
-                    }}>
-                    <div className="flex gap-6">
-                        <div className="p-6 rounded-2xl border flex-1 space-y-4" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border)' }}>
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl" style={{ backgroundColor: 'var(--accent)' }} />
-                                <div>
-                                    <div className="h-2 w-24 rounded bg-white/10 mb-2" />
-                                    <div className="h-1.5 w-16 rounded bg-white/5" />
-                                </div>
-                            </div>
-                            <div className="space-y-2 pt-2">
-                                <div className="h-2 w-full rounded bg-white/10" />
-                                <div className="h-2 w-5/6 rounded bg-white/5" />
-                            </div>
-                        </div>
-                        <div className="p-6 rounded-2xl border flex-1 flex flex-col justify-between" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border)' }}>
-                            <div className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--accent)' }} />
-                                    <div className="h-2 w-full rounded bg-white/10" />
-                                </div>
-                                <div className="flex items-center gap-2 opacity-30">
-                                    <div className="w-2 h-2 rounded-full border border-white" />
-                                    <div className="h-2 w-3/4 rounded bg-white/10" />
-                                </div>
-                            </div>
-                            <button
-                                className="w-full py-3 rounded-xl text-xs font-bold uppercase tracking-widest text-white shadow-xl transition-transform hover:scale-[1.02] active:scale-[0.98]"
-                                style={{ backgroundColor: 'var(--accent)' }}
-                            >
-                                Primary Action
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     );
 }

@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion';
 import { Resource } from '../RepositoryView';
 import { containerVariants, itemVariants } from '@/lib/animations';
-import { FileText, FileIcon, Image as ImageIcon, Music, Trash2, Tag } from 'lucide-react';
-import { useState } from 'react';
+import { FileText, FileIcon, Image as ImageIcon, Music, Trash2, Tag, Book, MoreHorizontal } from 'lucide-react';
+
 
 interface ResourceListViewProps {
     resources: Resource[];
@@ -14,29 +14,26 @@ interface ResourceListViewProps {
 }
 
 function getResourceIcon(type: string) {
-    switch (type) {
+    switch (type.toLowerCase()) {
         case 'note': return <FileText size={18} />;
         case 'pdf': return <FileIcon size={18} />;
         case 'image': return <ImageIcon size={18} />;
         case 'video': return <Music size={18} />;
-        case 'document': return <FileIcon size={18} />;
+        case 'epub': case 'azw3': case 'fb2': case 'ibooks': return <Book size={18} />;
         default: return <FileIcon size={18} />;
     }
 }
 
 function getTypeColor(type: string) {
-    switch (type) {
-        case 'pdf': return '#ef4444';
-        case 'note': return '#eab308';
-        case 'image': return '#10b981';
-        case 'document': return '#8b5cf6';
-        case 'video': return '#a855f7';
-        default: return '#3b82f6';
+    switch (type.toLowerCase()) {
+        case 'pdf': return 'text-red-400 bg-red-400/10 border-red-400/20';
+        case 'note': return 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20';
+        case 'image': return 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20';
+        case 'document': return 'text-blue-400 bg-blue-400/10 border-blue-400/20';
+        case 'video': return 'text-purple-400 bg-purple-400/10 border-purple-400/20';
+        case 'epub': case 'book': return 'text-amber-400 bg-amber-400/10 border-amber-400/20';
+        default: return 'text-zinc-400 bg-zinc-400/10 border-zinc-400/20';
     }
-}
-
-function getTypeLabel(type: string) {
-    return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
 export function ResourceListView({
@@ -47,176 +44,157 @@ export function ResourceListView({
     onShowAddNote,
     onImportFile
 }: ResourceListViewProps) {
-    const [expandedId, setExpandedId] = useState<number | null>(null);
-
     return (
         <motion.div
-            className="absolute inset-0 w-full h-full overflow-y-auto custom-scrollbar"
+            className="absolute inset-0 w-full h-full overflow-y-auto custom-scrollbar bg-bg-base"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
         >
             <motion.div
-                className="p-6 w-full max-w-7xl mx-auto"
+                className="px-6 py-6 w-full"
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
             >
                 {resources.length === 0 && (
                     <motion.div
-                        className="glass-card p-12 flex flex-col items-center justify-center text-center"
+                        className="flex flex-col items-center justify-center text-center mt-20"
                         variants={itemVariants}
                     >
-                        <p style={{ color: 'var(--text-secondary)' }} className="mb-6 text-lg">
-                            No resources yet. Add notes or import files to see them here.
+                        <div className="w-16 h-16 rounded-2xl bg-bg-surface border border-border flex items-center justify-center mb-6">
+                            <FileText className="text-text-tertiary" size={32} />
+                        </div>
+                        <h3 className="text-xl font-bold text-text-primary mb-2">No resources yet</h3>
+                        <p className="text-text-secondary mb-8 max-w-sm">
+                            Your repository is empty. Add notes or import files to get started.
                         </p>
-                        <motion.div
-                            className="flex gap-3"
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.3 }}
-                        >
+                        <div className="flex gap-4">
                             <motion.button
                                 onClick={onShowAddNote}
-                                className="px-4 py-2 rounded-xl border border-border text-text-primary bg-transparent text-sm hover:bg-[var(--bg-hover)] transition-colors"
+                                className="px-6 py-2.5 rounded-xl bg-text-primary text-bg-primary font-semibold hover:opacity-90 transition-opacity"
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
                             >
-                                Add Note
+                                Create Note
                             </motion.button>
                             <motion.button
                                 onClick={onImportFile}
-                                className="px-4 py-2 rounded-xl border border-border text-text-secondary text-sm hover:bg-[var(--bg-hover)] transition-colors"
+                                className="px-6 py-2.5 rounded-xl border border-border text-text-primary hover:bg-bg-hover transition-colors font-medium"
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
                             >
                                 Import File
                             </motion.button>
-                        </motion.div>
+                        </div>
                     </motion.div>
                 )}
 
                 {resources.length > 0 && (
-                    <div className="space-y-2">
+                    <div className="w-full space-y-4">
                         {/* Header Row */}
-                        <div
-                            className="grid grid-cols-12 gap-4 px-4 py-3 text-xs font-semibold uppercase tracking-wide rounded-lg"
-                            style={{
-                                backgroundColor: 'var(--bg-hover)',
-                                color: 'var(--text-tertiary)'
-                            }}
-                        >
-                            <div className="col-span-5">Title</div>
-                            <div className="col-span-2">Type</div>
+                        <div className="grid grid-cols-12 gap-4 px-6 text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+                            <div className="col-span-5 pl-2">Name</div>
+                            <div className="col-span-1">Type</div>
+                            <div className="col-span-2">Date Modified</div>
                             <div className="col-span-3">Tags</div>
-                            <div className="col-span-2 text-right">Actions</div>
+                            <div className="col-span-1 text-right pr-2">Actions</div>
                         </div>
 
                         {/* Resource Rows */}
-                        {resources.map((res, idx) => (
-                            <motion.div
-                                key={res.id || `res-${idx}`}
-                                variants={itemVariants}
-                                initial="hidden"
-                                animate="visible"
-                                className="group"
-                            >
-                                <div
-                                    className="grid grid-cols-12 gap-4 px-4 py-3 rounded-lg transition-all duration-200 cursor-pointer hover:bg-bg-hover mb-1"
-                                    style={{
-                                        backgroundColor: expandedId === res.id ? 'var(--bg-hover)' : 'transparent'
-                                    }}
-                                    onClick={() => setExpandedId(expandedId === res.id ? null : res.id)}
+                        <div className="space-y-3">
+                            {resources.map((res, idx) => (
+                                <motion.div
+                                    key={res.id || `res-${idx}`}
+                                    variants={itemVariants}
+                                    initial="hidden"
+                                    animate="visible"
+                                    className="group"
                                 >
-                                    {/* Title with Icon */}
-                                    <div className="col-span-5 flex items-center gap-3 min-w-0">
-                                        <div
-                                            className="p-2 rounded-lg flex-shrink-0 flex items-center justify-center"
-                                            style={{
-                                                backgroundColor: `${getTypeColor(res.type)}20`,
-                                                color: getTypeColor(res.type)
-                                            }}
-                                        >
-                                            {getResourceIcon(res.type)}
-                                        </div>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onOpenResource(res);
-                                            }}
-                                            className="text-left min-w-0 flex-1 font-medium hover:text-accent transition-colors line-clamp-2 break-words"
-                                            style={{ color: 'var(--text-primary)' }}
-                                            title={res.title}
-                                        >
-                                            {res.title}
-                                        </button>
-                                    </div>
-
-                                    {/* Type */}
-                                    <div className="col-span-2 flex items-center">
-                                        <span
-                                            className="inline-block px-2.5 py-1 rounded-md text-xs font-medium"
-                                            style={{
-                                                backgroundColor: `${getTypeColor(res.type)}20`,
-                                                color: getTypeColor(res.type)
-                                            }}
-                                        >
-                                            {getTypeLabel(res.type)}
-                                        </span>
-                                    </div>
-
-                                    {/* Tags */}
-                                    <div className="col-span-3 flex items-center flex-wrap gap-1 min-w-0">
-                                        {res.tags ? (
-                                            res.tags.split(',').map(tag => tag.trim()).filter(tag => tag).map((tag, idx) => (
-                                                <span
-                                                    key={`${tag}-${idx}`}
-                                                    className="inline-block px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap"
-                                                    style={{
-                                                        backgroundColor: 'var(--accent)',
-                                                        color: 'black'
-                                                    }}
-                                                >
-                                                    #{tag}
-                                                </span>
-                                            ))
-                                        ) : (
-                                            <span style={{ color: 'var(--text-tertiary)' }} className="text-xs italic">
-                                                No tags
+                                    <div
+                                        className="grid grid-cols-12 gap-4 px-4 py-3 items-center bg-transparent border border-border/30 rounded-xl hover:border-accent/40 hover:bg-bg-surface/30 transition-all cursor-pointer"
+                                        onClick={() => onOpenResource(res)}
+                                    >
+                                        {/* Name */}
+                                        <div className="col-span-5 flex items-center gap-4 min-w-0">
+                                            <div
+                                                className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border ${getTypeColor(res.type)}`}
+                                            >
+                                                {getResourceIcon(res.type)}
+                                            </div>
+                                            <span className="text-sm font-medium text-text-primary truncate" title={res.title}>
+                                                {res.title}
                                             </span>
-                                        )}
-                                    </div>
+                                        </div>
 
-                                    {/* Actions */}
-                                    <div className="col-span-2 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <motion.button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onEditTags(res);
-                                            }}
-                                            className="p-2 rounded-lg hover:bg-accent/10 transition-colors flex items-center justify-center"
-                                            style={{ color: 'var(--text-secondary)' }}
-                                            title="Edit tags"
-                                            whileHover={{ scale: 1.1 }}
-                                            whileTap={{ scale: 0.95 }}
-                                        >
-                                            <Tag size={16} />
-                                        </motion.button>
-                                        <motion.button
-                                            onClick={(e) => onDeleteResource(e, res.id)}
-                                            className="p-2 rounded-lg hover:bg-red-500/10 transition-colors flex items-center justify-center"
-                                            style={{ color: 'var(--text-secondary)' }}
-                                            title="Delete resource"
-                                            whileHover={{ scale: 1.1 }}
-                                            whileTap={{ scale: 0.95 }}
-                                        >
-                                            <Trash2 size={16} />
-                                        </motion.button>
+                                        {/* Type */}
+                                        <div className="col-span-1">
+                                            <span className="text-xs font-bold text-text-secondary uppercase">
+                                                {res.type}
+                                            </span>
+                                        </div>
+
+                                        {/* Date (Mock) */}
+                                        <div className="col-span-2">
+                                            <span className="text-sm text-text-secondary">
+                                                24-Dec-25
+                                            </span>
+                                        </div>
+
+                                        {/* Tags */}
+                                        <div className="col-span-3 flex items-center flex-wrap gap-2 min-w-0 h-7 overflow-hidden">
+                                            {res.tags ? (
+                                                res.tags.split(',').map(tag => tag.trim()).filter(tag => tag).map((tag, idx) => (
+                                                    <span
+                                                        key={`${tag}-${idx}`}
+                                                        className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-bg-surface border border-border/50 text-text-secondary"
+                                                    >
+                                                        #{tag}
+                                                    </span>
+                                                ))
+                                            ) : (
+                                                <span className="text-xs text-text-tertiary/50 italic">
+                                                    No tags
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {/* Actions */}
+                                        <div className="col-span-1 flex items-center justify-end">
+                                            <button
+                                                className="p-2 text-text-tertiary hover:text-text-primary transition-colors"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    // Dropdown trigger would go here
+                                                }}
+                                            >
+                                                <MoreHorizontal size={18} />
+                                            </button>
+
+                                            {/* Hover Actions - kept just in case, but visual design shows dots mostly */}
+                                            <div className="hidden group-hover:flex absolute right-14 bg-bg-base border border-border shadow-lg rounded-lg p-1 gap-1">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onEditTags(res);
+                                                    }}
+                                                    className="p-1.5 rounded hover:bg-bg-hover text-text-secondary hover:text-text-primary"
+                                                >
+                                                    <Tag size={14} />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => onDeleteResource(e, res.id)}
+                                                    className="p-1.5 rounded hover:bg-bg-hover text-text-secondary hover:text-red-400"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            </motion.div>
-                        ))}
+                                </motion.div>
+                            ))}
+                        </div>
                     </div>
                 )}
             </motion.div>

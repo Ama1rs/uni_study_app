@@ -32,30 +32,30 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
 
             {/* Modal */}
             <div
-                className="relative w-full max-w-4xl h-[80vh] flex rounded-2xl shadow-2xl overflow-hidden"
+                className="relative w-full max-w-5xl h-[550px] flex rounded-2xl shadow-2xl overflow-hidden"
                 style={{
                     backgroundColor: 'var(--bg-primary)',
                     border: '1px solid var(--border)',
                 }}
             >
                 {/* Sidebar */}
-                <div className="w-64 border-r flex flex-col" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' }}>
-                    <div className="p-6 border-b" style={{ borderColor: 'var(--border)' }}>
-                        <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Settings</h2>
+                <div className="w-52 border-r flex flex-col" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' }}>
+                    <div className="h-[56px] px-5 border-b flex items-center shrink-0" style={{ borderColor: 'var(--border)' }}>
+                        <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>Settings</h2>
                     </div>
-                    <div className="flex-1 p-4 space-y-2 overflow-y-auto">
+                    <div className="flex-1 p-3 space-y-1 overflow-y-auto">
                         {tabs.map((tab) => (
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id as SettingsTab)}
                                 className={cn(
-                                    "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors",
+                                    "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                                     activeTab === tab.id
                                         ? "bg-[var(--accent)]/10 text-[var(--accent)]"
                                         : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                                 )}
                             >
-                                <tab.icon size={18} />
+                                <tab.icon size={16} />
                                 {tab.label}
                             </button>
                         ))}
@@ -65,13 +65,13 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                 {/* Content Area */}
                 <div className="flex-1 flex flex-col min-w-0">
                     {/* Header */}
-                    <div className="flex items-center justify-end p-4 border-b" style={{ borderColor: 'var(--border)' }}>
+                    <div className="h-[56px] flex items-center justify-end px-4 border-b shrink-0" style={{ borderColor: 'var(--border)' }}>
                         <button
                             onClick={onClose}
-                            className="p-2 rounded-lg transition-colors hover:bg-[var(--bg-hover)]"
+                            className="p-1.5 rounded-lg transition-colors hover:bg-[var(--bg-hover)]"
                             style={{ color: 'var(--text-secondary)' }}
                         >
-                            <X size={20} />
+                            <X size={18} />
                         </button>
                     </div>
 

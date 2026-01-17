@@ -71,6 +71,7 @@ export function ChatLocalLLM() {
     const [clearAllConfirm, setClearAllConfirm] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     // Use chat history hook
     const {
@@ -93,6 +94,13 @@ export function ChatLocalLLM() {
     useEffect(() => {
         scrollToBottom();
     }, [messages, loading]);
+
+    // Reset textarea height when input is cleared
+    useEffect(() => {
+        if (input === '' && textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+        }
+    }, [input]);
 
     useEffect(() => {
         checkModelStatus();
@@ -385,7 +393,7 @@ export function ChatLocalLLM() {
 
                 {/* Messages Container */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar px-8 py-4 relative">
-                    <div className="max-w-4xl mx-auto space-y-12 pb-32">
+                    <div className="max-w-4xl mx-auto space-y-12 pb-56 md:pb-80">
                         {messages.length === 0 ? (
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.95 }}
@@ -519,6 +527,7 @@ export function ChatLocalLLM() {
                     <div className="w-full max-w-3xl glass-card rounded-[32px] p-2 flex flex-col gap-2 pointer-events-auto border border-border shadow-none">
                         <div className="relative flex items-end gap-2 p-1 pl-4">
                             <textarea
+                                ref={textareaRef}
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyDown={(e) => {

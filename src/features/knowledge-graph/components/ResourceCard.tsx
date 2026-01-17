@@ -13,75 +13,77 @@ interface ResourceCardProps {
 export function ResourceCard({ res, onOpen, onDelete, onEditTags }: ResourceCardProps) {
     const isBookType = ['epub', 'azw3', 'fb2', 'ibooks'].includes(res.type.toLowerCase());
 
+    const getTypeColor = () => {
+        switch (res.type.toLowerCase()) {
+            case 'pdf': return 'text-red-400 bg-red-400/10 border-red-400/20';
+            case 'note': return 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20';
+            case 'image': return 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20';
+            case 'document': return 'text-blue-400 bg-blue-400/10 border-blue-400/20';
+            case 'video': return 'text-purple-400 bg-purple-400/10 border-purple-400/20';
+            case 'epub': case 'book': return 'text-amber-400 bg-amber-400/10 border-amber-400/20';
+            default: return 'text-zinc-400 bg-zinc-400/10 border-zinc-400/20';
+        }
+    };
+
     return (
         <motion.div
-            className="flex items-center gap-4 p-4 border border-border/40 bg-bg-surface/30 hover:bg-bg-surface/80 hover:border-accent/30 rounded-xl transition-all cursor-pointer group shadow-sm hover:shadow-md"
+            className="group relative flex items-center p-3 h-[90px] border border-border/50 bg-transparent hover:bg-bg-surface/30 rounded-xl transition-all cursor-pointer hover:border-accent/40"
             variants={itemVariants}
             initial="hidden"
             animate="visible"
             onClick={() => onOpen(res)}
             whileHover={{ y: -2 }}
         >
-            {/* Icon Column */}
-            <div className={`shrink-0 ${res.type === 'pdf' ? 'text-red-400' :
-                res.type === 'note' ? 'text-yellow-400' :
-                    res.type === 'image' ? 'text-emerald-400' :
-                        res.type === 'document' ? 'text-purple-300' :
-                            res.type === 'video' ? 'text-purple-400' :
-                                isBookType ? 'text-amber-400' :
-                                    'text-blue-400'
-                }`}>
-                {res.type === 'pdf' && <FileText size={18} />}
-                {res.type === 'note' && <StickyNote size={18} />}
-                {res.type === 'file' && <LinkIcon size={18} />}
-                {res.type === 'image' && <ImageIcon size={18} />}
-                {res.type === 'document' && <FileIcon size={18} />}
-                {res.type === 'video' && <Video size={18} />}
-                {isBookType && <Book size={18} />}
+            {/* Icon */}
+            <div className={`w-12 h-12 rounded-lg flex items-center justify-center border shrink-0 ${getTypeColor()}`}>
+                {res.type === 'pdf' && <FileText size={20} />}
+                {res.type === 'note' && <StickyNote size={20} />}
+                {res.type === 'file' && <LinkIcon size={20} />}
+                {res.type === 'image' && <ImageIcon size={20} />}
+                {res.type === 'document' && <FileIcon size={20} />}
+                {res.type === 'video' && <Video size={20} />}
+                {isBookType && <Book size={20} />}
             </div>
 
-            {/* Title Column */}
-            <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-medium text-text-primary line-clamp-2 break-words group-hover:text-accent transition-colors">
+            {/* Content */}
+            <div className="flex-1 ml-4 min-w-0 flex flex-col justify-center h-full">
+                <h3 className="text-sm font-semibold text-text-primary line-clamp-2 leading-snug group-hover:text-accent transition-colors" title={res.title}>
                     {res.title}
                 </h3>
-                <div className="flex items-center gap-2 mt-0.5">
-                    {res.tags && res.tags.split(',').map(tag => tag.trim()).filter(tag => tag).map((tag, index) => (
-                        <span key={`${tag}-${index}`} className="text-[10px] text-text-tertiary">#{tag}</span>
-                    ))}
-                </div>
             </div>
 
-            {/* Type Column */}
-            <div className="w-20 shrink-0 text-right">
-                <span className="text-[10px] uppercase font-bold text-text-tertiary tracking-wider">{res.type}</span>
-            </div>
+            {/* Right Side: Type & Actions */}
+            <div className="flex flex-col items-end justify-between h-full py-1 ml-2">
+                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">
+                    {res.type}
+                </span>
 
-            {/* Actions Column (Hover only) */}
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                {res.type === 'note' && (
+                {/* Actions (Absolute in design, or flex) */}
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
-                        onClick={(e) => { e.stopPropagation(); onOpen(res); }}
-                        className="p-1.5 rounded-sm hover:bg-bg-active text-text-tertiary hover:text-text-primary"
-                        title="Edit Note"
+                        onClick={(e) => { e.stopPropagation(); onEditTags(res); }}
+                        className="p-1.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors"
+                        title="Edit Tags"
                     >
-                        <Edit size={14} />
+                        <Tag size={12} />
                     </button>
-                )}
-                <button
-                    onClick={(e) => { e.stopPropagation(); onEditTags(res); }}
-                    className="p-1.5 rounded-sm hover:bg-bg-active text-text-tertiary hover:text-blue-400"
-                    title="Edit Tags"
-                >
-                    <Tag size={14} />
-                </button>
-                <button
-                    onClick={(e) => onDelete(e, res.id)}
-                    className="p-1.5 rounded-sm hover:bg-bg-active text-text-tertiary hover:text-red-400"
-                    title="Delete"
-                >
-                    <Trash2 size={14} />
-                </button>
+                    {res.type === 'note' && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onOpen(res); }}
+                            className="p-1.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors"
+                            title="Edit"
+                        >
+                            <Edit size={12} />
+                        </button>
+                    )}
+                    <button
+                        onClick={(e) => onDelete(e, res.id)}
+                        className="p-1.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-red-400 transition-colors"
+                        title="Delete"
+                    >
+                        <Trash2 size={12} />
+                    </button>
+                </div>
             </div>
         </motion.div>
     );

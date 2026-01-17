@@ -61,7 +61,7 @@ export function ImageViewer({ src, alt, title }: ImageViewerProps) {
     ];
 
     return (
-        <div className="relative w-full h-full flex flex-col items-center justify-center overflow-hidden select-none bg-black/40 rounded-xl border border-white/5">
+        <div className="relative w-full h-full flex flex-col items-center justify-center overflow-hidden select-none">
             {/* Main Viewing Area */}
             <div
                 ref={containerRef}
@@ -76,12 +76,12 @@ export function ImageViewer({ src, alt, title }: ImageViewerProps) {
                         rotate: rotation,
                     }}
                     transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                    className="flex items-center justify-center pointer-events-auto"
+                    className="flex items-center justify-center pointer-events-auto w-full h-full"
                 >
                     <img
                         src={src}
                         alt={alt || title}
-                        className="max-h-[80vh] max-w-[80vw] object-contain shadow-2xl rounded-sm pointer-events-none"
+                        className="max-h-full max-w-full object-contain pointer-events-none"
                         draggable={false}
                     />
                 </motion.div>
@@ -123,9 +123,6 @@ export function ImageViewer({ src, alt, title }: ImageViewerProps) {
                     </span>
                 </div>
             </div>
-
-            {/* Visual Decoration Overlay */}
-            <div className="absolute inset-0 pointer-events-none border border-inset border-white/5 rounded-xl" />
         </div>
     );
 }

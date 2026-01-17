@@ -57,10 +57,7 @@ export function DataSettings() {
 
     return (
         <div className="p-6 space-y-6">
-            <div>
-                <h2 className="text-xl font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Data & Storage</h2>
-                <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>Manage your database connection</p>
-            </div>
+
 
             <div className="space-y-6">
                 {/* Database Type Selection */}

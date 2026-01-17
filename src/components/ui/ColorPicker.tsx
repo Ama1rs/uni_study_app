@@ -112,8 +112,8 @@ export function ColorPicker({ color, onChange, size = 200 }: ColorPickerProps) {
     }, [isDraggingMain, isDraggingHue, hsv]);
 
     return (
-        <div className="flex flex-col items-center gap-6 p-2">
-            <div className="flex gap-4">
+        <div className="flex flex-col items-center gap-8 p-2 w-full">
+            <div className="flex items-center justify-center gap-8 w-full pl-6">
                 {/* Saturation/Value Square */}
                 <div className="relative" style={{ width: size, height: size }}>
                     <canvas

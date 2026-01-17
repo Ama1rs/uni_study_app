@@ -90,7 +90,7 @@ export function BookCard({ book, progress = 0, lastReadAt, viewMode = 'grid', on
         return (
             <>
                 <motion.div
-                    className="group relative flex items-center gap-4 p-4 rounded-xl bg-bg-surface border border-border/50 hover:border-accent/50 hover:bg-bg-surface/80 transition-all cursor-pointer overflow-hidden"
+                    className="group relative flex items-center gap-4 p-4 rounded-xl bg-bg-surface border border-border/30 hover:border-accent/50 hover:bg-bg-surface/80 transition-all cursor-pointer overflow-hidden"
                     onClick={handleOpen}
                     whileHover={{ scale: 1.005 }}
                     whileTap={{ scale: 0.995 }}
@@ -168,14 +168,14 @@ export function BookCard({ book, progress = 0, lastReadAt, viewMode = 'grid', on
     return (
         <>
             <motion.div
-                className="group relative flex flex-col rounded-xl bg-bg-surface border border-border/50 hover:border-accent/30 overflow-hidden cursor-pointer transition-all h-full"
+                className="group relative flex flex-col rounded-xl bg-bg-surface border border-border/30 hover:border-accent/30 overflow-hidden cursor-pointer transition-all h-full"
                 onClick={handleOpen}
                 whileHover={{ y: -4 }}
                 whileTap={{ scale: 0.98 }}
             >
                 {/* Book Cover / Placeholder */}
                 <div
-                    className="aspect-[2/3] w-full relative flex items-center justify-center bg-gradient-to-br from-bg-surface to-bg-base border-b border-border/50"
+                    className="aspect-[2/3] w-full relative flex items-center justify-center bg-gradient-to-br from-bg-surface to-bg-base border-b border-border/30"
                 >
                     {/* Fallback Icon */}
                     <div className="flex flex-col items-center gap-2 opacity-50">

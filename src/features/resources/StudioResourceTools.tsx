@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { openPath } from '@tauri-apps/plugin-opener';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     FileText,
     Image as ImageIcon,
@@ -12,7 +13,13 @@ import {
     Repeat,
     Layers,
     FileType,
-    X
+    X,
+    Eye,
+    EyeOff,
+    FileDigit,
+    ArrowLeft,
+    ArrowRight,
+    Sparkles
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -49,6 +56,15 @@ export function StudioResourceTools() {
 
     const [jpegQuality, setJpegQuality] = useState<number>(85);
 
+    const [previewIndex, setPreviewIndex] = useState(0);
+
+    const activePaths = useMemo(() => {
+        if (activeTool === 'pdf_merge' || activeTool === 'image_batch_optimize') {
+            return inputPaths;
+        }
+        return inputPath ? [inputPath] : [];
+    }, [activeTool, inputPaths, inputPath]);
+
     function closeDialog() {
         if (isRunning) return;
         setIsDialogOpen(false);
@@ -73,6 +89,7 @@ export function StudioResourceTools() {
         setResizeHeight(1024);
         setResizeMode('contain');
         setJpegQuality(85);
+        setPreviewIndex(0);
     }
 
     async function openResult(path?: string | null) {
@@ -399,189 +416,261 @@ export function StudioResourceTools() {
             </div>
 
             {isDialogOpen && dialogMeta && (typeof document !== 'undefined' ? createPortal(
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                    <div className="bg-bg-surface w-[560px] p-6 rounded-sm border border-border shadow-2xl flex flex-col max-h-[85vh]">
-                        <div className="flex justify-between items-center mb-6 flex-shrink-0">
-                            <div>
-                                <h2 className="text-xl font-bold text-text-primary font-mono">{dialogMeta.title}</h2>
-                                <p className="text-xs text-text-tertiary font-mono uppercase tracking-wider">{dialogMeta.subtitle}</p>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-6">
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.98, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        className="bg-bg-surface w-full max-w-[95vw] h-[92vh] rounded-lg border border-border shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden"
+                    >
+                        {/* Header */}
+                        <div className="flex justify-between items-center px-8 py-5 border-b border-border flex-shrink-0 bg-bg-surface/80 backdrop-blur-sm">
+                            <div className="flex items-center gap-4">
+                                <div className="p-2.5 bg-accent/20 rounded-xl border border-accent/30">
+                                    <Sparkles size={20} className="text-accent" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-text-primary font-mono tracking-tight">{dialogMeta.title}</h2>
+                                    <p className="text-[10px] text-text-tertiary font-mono uppercase tracking-[0.2em]">{dialogMeta.subtitle}</p>
+                                </div>
                             </div>
                             <button
                                 onClick={closeDialog}
-                                className={cn("text-text-tertiary hover:text-text-primary transition-colors", isRunning && "opacity-50 cursor-not-allowed")}
+                                className={cn("text-text-tertiary hover:text-text-primary transition-all p-2 hover:bg-white/5 rounded-full border border-transparent hover:border-border", isRunning && "opacity-50 cursor-not-allowed")}
                                 disabled={isRunning}
                             >
                                 <X size={20} />
                             </button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto pr-2 space-y-5">
-                            {/* Input Selection */}
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs uppercase text-text-tertiary font-bold tracking-wider font-mono">Input</span>
-                                    <button
-                                        onClick={chooseInput}
-                                        className="px-3 py-1 rounded-sm bg-bg-hover hover:bg-white/10 border border-border text-xs text-text-secondary font-mono transition-colors"
-                                        disabled={isRunning}
-                                    >
-                                        Select Files
-                                    </button>
-                                </div>
-                                <div className="bg-bg-primary border border-border rounded-sm p-3 text-xs text-text-secondary font-mono break-all">
-                                    {activeTool === 'pdf_merge' || activeTool === 'image_batch_optimize'
-                                        ? inputPaths.length
-                                            ? `${inputPaths.length} files selected`
-                                            : 'No files selected'
-                                        : inputPath || 'No file selected'}
-                                </div>
-                            </div>
-
-                            {/* Output Selection */}
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs uppercase text-text-tertiary font-bold tracking-wider font-mono">
-                                        {activeTool === 'image_batch_optimize' ? 'Output folder' : 'Output'}
-                                    </span>
-                                    <button
-                                        onClick={chooseOutput}
-                                        className="px-3 py-1 rounded-sm bg-bg-hover hover:bg-white/10 border border-border text-xs text-text-secondary font-mono transition-colors"
-                                        disabled={isRunning}
-                                    >
-                                        Select Destination
-                                    </button>
-                                </div>
-                                <div className="bg-bg-primary border border-border rounded-sm p-3 text-xs text-text-secondary font-mono break-all">
-                                    {activeTool === 'image_batch_optimize' ? outputDir || 'No folder selected' : outputPath || 'No output selected'}
-                                </div>
-                            </div>
-
-                            {/* Tool Specific Options */}
-                            {activeTool === 'pdf_extract_pages' && (
-                                <div className="space-y-2">
-                                    <label className="block text-xs uppercase text-text-tertiary font-bold tracking-wider mb-1 font-mono">Pages</label>
-                                    <input
-                                        value={pagesSpec}
-                                        onChange={(e) => setPagesSpec(e.target.value)}
-                                        placeholder="e.g. 1-3,5,7"
-                                        className="w-full bg-bg-primary border border-border rounded-sm px-3 py-2 text-sm outline-none focus:border-accent text-text-primary font-mono transition-colors"
-                                        disabled={isRunning}
-                                    />
-                                </div>
-                            )}
-
-                            {activeTool === 'pdf_compress' && (
-                                <div className="space-y-2">
-                                    <label className="block text-xs uppercase text-text-tertiary font-bold tracking-wider mb-1 font-mono">Compression (0-9)</label>
-                                    <div className="flex items-center gap-3">
-                                        <input
-                                            type="range"
-                                            min={0}
-                                            max={9}
-                                            step={1}
-                                            value={compressionLevel}
-                                            onChange={(e) => setCompressionLevel(Number(e.target.value))}
-                                            className="w-full accent-accent"
-                                            disabled={isRunning}
-                                        />
-                                        <span className="text-sm font-mono text-text-primary w-6 text-right">{compressionLevel}</span>
-                                    </div>
-                                </div>
-                            )}
-
-                            {activeTool === 'image_resize' && (
-                                <div className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs uppercase text-text-tertiary font-bold tracking-wider mb-1 font-mono">Width (px)</label>
-                                            <input
-                                                type="number"
-                                                min={1}
-                                                value={resizeWidth}
-                                                onChange={(e) => setResizeWidth(Number(e.target.value))}
-                                                className="w-full bg-bg-primary border border-border rounded-sm px-3 py-2 text-sm outline-none focus:border-accent text-text-primary font-mono transition-colors"
-                                                disabled={isRunning}
-                                            />
+                        {/* Main Content Area */}
+                        <div className="flex-1 flex min-h-0 overflow-hidden">
+                            {/* Left Pane: Settings */}
+                            <div className="w-[320px] border-r border-border p-6 overflow-y-auto space-y-8 bg-bg-surface/30 backdrop-blur-sm shadow-xl flex-shrink-0">
+                                {/* Input Selection */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+                                            <span className="text-xs uppercase text-text-tertiary font-bold tracking-wider font-mono">Input Source</span>
                                         </div>
-                                        <div>
-                                            <label className="block text-xs uppercase text-text-tertiary font-bold tracking-wider mb-1 font-mono">Height (px)</label>
-                                            <input
-                                                type="number"
-                                                min={1}
-                                                value={resizeHeight}
-                                                onChange={(e) => setResizeHeight(Number(e.target.value))}
-                                                className="w-full bg-bg-primary border border-border rounded-sm px-3 py-2 text-sm outline-none focus:border-accent text-text-primary font-mono transition-colors"
-                                                disabled={isRunning}
-                                            />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs uppercase text-text-tertiary font-bold tracking-wider mb-1 font-mono">Mode</label>
-                                        <select
-                                            value={resizeMode}
-                                            onChange={(e) => setResizeMode(e.target.value as any)}
-                                            className="w-full bg-bg-primary border border-border rounded-sm px-3 py-2 text-sm outline-none focus:border-accent text-text-primary font-mono transition-colors"
+                                        <button
+                                            onClick={chooseInput}
+                                            className="px-3 py-1 rounded-sm bg-bg-hover hover:bg-white/10 border border-border text-xs text-text-secondary font-mono transition-colors flex items-center gap-2"
                                             disabled={isRunning}
                                         >
-                                            <option value="contain">Contain</option>
-                                            <option value="cover">Cover</option>
-                                            <option value="stretch">Stretch</option>
-                                        </select>
+                                            <Layers size={12} />
+                                            Select Files
+                                        </button>
+                                    </div>
+                                    <div className="bg-bg-primary border border-border rounded-sm p-3 text-xs text-text-secondary font-mono break-all min-h-[40px] flex items-center">
+                                        {activeTool === 'pdf_merge' || activeTool === 'image_batch_optimize'
+                                            ? inputPaths.length
+                                                ? `${inputPaths.length} files selected`
+                                                : 'No files selected'
+                                            : inputPath || 'No file selected'}
                                     </div>
                                 </div>
-                            )}
 
-                            {activeTool === 'image_batch_optimize' && (
-                                <div className="space-y-2">
-                                    <label className="block text-xs uppercase text-text-tertiary font-bold tracking-wider mb-1 font-mono">JPEG Quality</label>
-                                    <div className="flex items-center gap-3">
-                                        <input
-                                            type="range"
-                                            min={1}
-                                            max={100}
-                                            step={1}
-                                            value={jpegQuality}
-                                            onChange={(e) => setJpegQuality(Number(e.target.value))}
-                                            className="w-full accent-accent"
+                                {/* Output Selection */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                                            <span className="text-xs uppercase text-text-tertiary font-bold tracking-wider font-mono">
+                                                {activeTool === 'image_batch_optimize' ? 'Output folder' : 'Output Destination'}
+                                            </span>
+                                        </div>
+                                        <button
+                                            onClick={chooseOutput}
+                                            className="px-3 py-1 rounded-sm bg-bg-hover hover:bg-white/10 border border-border text-xs text-text-secondary font-mono transition-colors flex items-center gap-2"
                                             disabled={isRunning}
-                                        />
-                                        <span className="text-sm font-mono text-text-primary w-10 text-right">{jpegQuality}</span>
+                                        >
+                                            <Repeat size={12} />
+                                            Choose Path
+                                        </button>
+                                    </div>
+                                    <div className="bg-bg-primary border border-border rounded-sm p-3 text-xs text-text-secondary font-mono break-all min-h-[40px] flex items-center">
+                                        {activeTool === 'image_batch_optimize' ? outputDir || 'No folder selected' : outputPath || 'No output selected'}
                                     </div>
                                 </div>
-                            )}
 
-                            {error && (
-                                <div className="p-3 rounded-sm border border-red-500/30 bg-red-500/10 text-xs text-red-200 font-mono break-words">
-                                    {error}
-                                </div>
-                            )}
-
-                            {validationError && !error && !resultPath && (
-                                <div className="p-3 rounded-sm border border-border bg-bg-primary text-xs text-text-tertiary font-mono">
-                                    {validationError}
-                                </div>
-                            )}
-
-                            {resultPath && (
-                                <div className="p-3 rounded-sm border border-accent/30 bg-accent/10 flex items-center justify-between gap-3">
-                                    <div className="min-w-0">
-                                        <p className="text-xs font-mono text-text-tertiary uppercase tracking-wider">Result ready</p>
-                                        <p className="text-xs text-text-secondary font-mono break-all truncate">{resultPath}</p>
+                                {/* Tool Specific Options */}
+                                <div className="pt-4 border-t border-border space-y-5">
+                                    <div className="flex items-center gap-2">
+                                        <Minimize2 size={14} className="text-text-tertiary" />
+                                        <span className="text-xs uppercase text-text-tertiary font-bold tracking-wider font-mono">Configuration</span>
                                     </div>
-                                    <button
-                                        onClick={() => openResult(resultPath)}
-                                        className="px-3 py-1.5 rounded-sm bg-accent text-black text-xs font-bold font-mono hover:bg-accent-hover transition-colors"
-                                    >
-                                        Open
-                                    </button>
+
+                                    {activeTool === 'pdf_extract_pages' && (
+                                        <div className="space-y-2">
+                                            <label className="block text-xs text-text-secondary font-mono">Page Range</label>
+                                            <input
+                                                value={pagesSpec}
+                                                onChange={(e) => setPagesSpec(e.target.value)}
+                                                placeholder="e.g. 1-3,5,7"
+                                                className="w-full bg-bg-primary border border-border rounded-sm px-3 py-2 text-sm outline-none focus:border-accent text-text-primary font-mono transition-colors"
+                                                disabled={isRunning}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {activeTool === 'pdf_compress' && (
+                                        <div className="space-y-3">
+                                            <div className="flex justify-between items-center">
+                                                <label className="block text-xs text-text-secondary font-mono">Compression Level</label>
+                                                <span className="text-xs font-mono text-accent">{compressionLevel}</span>
+                                            </div>
+                                            <input
+                                                type="range"
+                                                min={0}
+                                                max={9}
+                                                step={1}
+                                                value={compressionLevel}
+                                                onChange={(e) => setCompressionLevel(Number(e.target.value))}
+                                                className="w-full accent-accent"
+                                                disabled={isRunning}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {activeTool === 'image_resize' && (
+                                        <div className="space-y-4">
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-2">
+                                                    <label className="block text-xs text-text-secondary font-mono">Width (px)</label>
+                                                    <input
+                                                        type="number"
+                                                        min={1}
+                                                        value={resizeWidth}
+                                                        onChange={(e) => setResizeWidth(Number(e.target.value))}
+                                                        className="w-full bg-bg-primary border border-border rounded-sm px-3 py-2 text-sm outline-none focus:border-accent text-text-primary font-mono transition-colors"
+                                                        disabled={isRunning}
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="block text-xs text-text-secondary font-mono">Height (px)</label>
+                                                    <input
+                                                        type="number"
+                                                        min={1}
+                                                        value={resizeHeight}
+                                                        onChange={(e) => setResizeHeight(Number(e.target.value))}
+                                                        className="w-full bg-bg-primary border border-border rounded-sm px-3 py-2 text-sm outline-none focus:border-accent text-text-primary font-mono transition-colors"
+                                                        disabled={isRunning}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="block text-xs text-text-secondary font-mono">Scaling Mode</label>
+                                                <select
+                                                    value={resizeMode}
+                                                    onChange={(e) => setResizeMode(e.target.value as any)}
+                                                    className="w-full bg-bg-primary border border-border rounded-sm px-3 py-2 text-sm outline-none focus:border-accent text-text-primary font-mono transition-colors"
+                                                    disabled={isRunning}
+                                                >
+                                                    <option value="contain">Contain</option>
+                                                    <option value="cover">Cover</option>
+                                                    <option value="stretch">Stretch</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {activeTool === 'image_batch_optimize' && (
+                                        <div className="space-y-3">
+                                            <div className="flex justify-between items-center">
+                                                <label className="block text-xs text-text-secondary font-mono">JPEG Quality</label>
+                                                <span className="text-xs font-mono text-accent">{jpegQuality}%</span>
+                                            </div>
+                                            <input
+                                                type="range"
+                                                min={1}
+                                                max={100}
+                                                step={1}
+                                                value={jpegQuality}
+                                                onChange={(e) => setJpegQuality(Number(e.target.value))}
+                                                className="w-full accent-accent"
+                                                disabled={isRunning}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
-                            )}
+
+                                {/* Messages / Results */}
+                                <div className="space-y-3">
+                                    {error && (
+                                        <motion.div
+                                            initial={{ opacity: 0, x: -10 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            className="p-4 rounded-sm border border-red-500/30 bg-red-500/10 text-xs text-red-200 font-mono break-words leading-relaxed"
+                                        >
+                                            <div className="font-bold flex items-center gap-2 mb-1">
+                                                <X size={12} />
+                                                ERROR
+                                            </div>
+                                            {error}
+                                        </motion.div>
+                                    )}
+
+                                    {validationError && !error && !resultPath && (
+                                        <div className="p-4 rounded-sm border border-border bg-bg-primary/50 text-xs text-text-tertiary font-mono leading-relaxed italic">
+                                            {validationError}
+                                        </div>
+                                    )}
+
+                                    {resultPath && (
+                                        <motion.div
+                                            initial={{ opacity: 0, x: -10 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            className="p-4 rounded-sm border border-accent/30 bg-accent/10 space-y-3"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                                                <p className="text-xs font-mono text-text-primary font-bold uppercase tracking-wider">Process Complete</p>
+                                            </div>
+                                            <p className="text-[10px] text-text-tertiary font-mono break-all bg-black/20 p-2 rounded-sm">{resultPath}</p>
+                                            <button
+                                                onClick={() => openResult(resultPath)}
+                                                className="w-full px-3 py-2 rounded-sm bg-accent text-black text-xs font-bold font-mono hover:bg-accent/90 transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                <FileType size={14} />
+                                                Open Result
+                                            </button>
+                                        </motion.div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Right Pane: Preview */}
+                            <div className="flex-1 bg-black/40 flex flex-col min-w-0 relative">
+                                <div className="absolute top-6 left-8 z-10 flex items-center gap-3 bg-bg-surface/80 backdrop-blur-md px-4 py-2 rounded-xl border border-border shadow-lg">
+                                    <div className="p-1.5 bg-accent/20 rounded-md">
+                                        <Eye size={14} className="text-accent" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-[10px] font-bold text-text-primary uppercase tracking-widest font-mono">Dynamic Preview</h3>
+                                    </div>
+                                    {activePaths.length > 0 && (
+                                        <div className="ml-2 flex items-center gap-2 text-[9px] font-mono text-text-tertiary bg-white/5 px-2 py-0.5 rounded-full border border-border/50">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                            {activePaths.length} FILE{activePaths.length !== 1 ? 'S' : ''} LOADED
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex-1 min-h-0">
+                                    <FilePreview
+                                        paths={activePaths}
+                                        currentIndex={previewIndex}
+                                        onIndexChange={setPreviewIndex}
+                                    />
+                                </div>
+                            </div>
                         </div>
 
-                        <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-border flex-shrink-0">
+                        {/* Footer */}
+                        <div className="flex justify-end gap-3 p-6 border-t border-border flex-shrink-0 bg-bg-surface">
                             <button
                                 onClick={closeDialog}
-                                className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary font-mono transition-colors"
+                                className="px-6 py-2.5 text-sm text-text-secondary hover:text-text-primary font-mono transition-colors uppercase tracking-widest"
                                 disabled={isRunning}
                             >
                                 Cancel
@@ -589,13 +678,113 @@ export function StudioResourceTools() {
                             <button
                                 onClick={runActiveTool}
                                 disabled={!!validationError || isRunning}
-                                className="px-6 py-2 bg-accent text-black font-bold rounded-sm text-sm font-mono disabled:opacity-50 hover:bg-accent-hover transition-colors"
+                                className="px-10 py-2.5 bg-accent text-black font-bold rounded-sm text-sm font-mono disabled:opacity-50 hover:bg-accent/90 transition-all flex items-center gap-2 uppercase tracking-widest"
                             >
-                                {isRunning ? 'Running...' : 'Run Action'}
+                                {isRunning ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                                        Processing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Sparkles size={16} />
+                                        Run Action
+                                    </>
+                                )}
                             </button>
                         </div>
-                    </div>
+                    </motion.div>
                 </div>, document.body) : null)}
+        </div>
+    );
+}
+
+function FilePreview({ paths, currentIndex, onIndexChange }: { paths: string[]; currentIndex: number; onIndexChange: (idx: number) => void }) {
+    if (paths.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-text-tertiary space-y-4 bg-bg-primary/50 rounded-sm border border-dashed border-border/50">
+                <div className="p-6 bg-bg-surface rounded-full border border-border shadow-inner">
+                    <EyeOff size={48} className="opacity-20" />
+                </div>
+                <div className="text-center">
+                    <p className="text-sm font-mono uppercase tracking-widest font-bold">No Preview Available</p>
+                    <p className="text-[10px] font-mono opacity-50 mt-1">SELECT A FILE TO BEGIN</p>
+                </div>
+            </div>
+        );
+    }
+
+    const currentPath = paths[currentIndex];
+    const isPdf = currentPath.toLowerCase().endsWith('.pdf');
+
+    const assetUrl = convertFileSrc(currentPath);
+
+    return (
+        <div className="relative flex flex-col h-full bg-black/10 overflow-hidden">
+            <div className="flex-1 min-h-0 flex items-center justify-center relative group">
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={currentPath}
+                        initial={{ opacity: 0, scale: 0.99 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 1.01 }}
+                        transition={{ duration: 0.25 }}
+                        className="w-full h-full flex items-center justify-center"
+                    >
+                        {isPdf ? (
+                            <embed
+                                src={`${assetUrl}#toolbar=0&navpanes=0&view=FitH`}
+                                type="application/pdf"
+                                className="w-full h-full border-0 bg-white shadow-2xl"
+                            />
+                        ) : (
+                            <img
+                                src={assetUrl}
+                                alt="Preview"
+                                className="max-w-full max-h-full object-contain shadow-[0_0_80px_rgba(0,0,0,0.4)]"
+                                onError={(e) => {
+                                    console.error("Preview failed to load:", assetUrl);
+                                    // Fallback UI or attempt to fix URL if needed
+                                }}
+                            />
+                        )}
+                    </motion.div>
+                </AnimatePresence>
+
+                {paths.length > 1 && (
+                    <>
+                        <button
+                            onClick={() => onIndexChange((currentIndex - 1 + paths.length) % paths.length)}
+                            className="absolute left-4 p-2 bg-black/50 hover:bg-black/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-md"
+                        >
+                            <ArrowLeft size={20} />
+                        </button>
+                        <button
+                            onClick={() => onIndexChange((currentIndex + 1) % paths.length)}
+                            className="absolute right-4 p-2 bg-black/50 hover:bg-black/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-md"
+                        >
+                            <ArrowRight size={20} />
+                        </button>
+                    </>
+                )}
+            </div>
+
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 bg-bg-surface/80 backdrop-blur-md px-6 py-3 rounded-2xl border border-border shadow-2xl flex items-center gap-4 min-w-[300px] max-w-[80%] border-white/10">
+                <div className="flex items-center gap-3 overflow-hidden flex-1">
+                    <div className="p-2 bg-bg-primary rounded-lg border border-border">
+                        {isPdf ? <FileDigit size={16} className="text-red-400" /> : <ImageIcon size={16} className="text-cyan-400" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-xs font-mono text-text-primary truncate font-bold">{currentPath.split(/[\\/]/).pop()}</p>
+                        <p className="text-[9px] font-mono text-text-tertiary truncate opacity-60 font-medium tracking-tight">{currentPath}</p>
+                    </div>
+                </div>
+                {paths.length > 1 && (
+                    <div className="text-[10px] font-mono text-accent font-bold px-3 py-1 bg-accent/10 rounded-full border border-accent/20">
+                        {currentIndex + 1} / {paths.length}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

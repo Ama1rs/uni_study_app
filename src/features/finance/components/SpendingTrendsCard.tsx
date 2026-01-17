@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { FinanceBudget, FinanceSummary } from '@/lib/financeService';
 import { Maximize2, Filter } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useLayoutEffect, useRef } from 'react';
 
 interface SpendingTrendsCardProps {
     budgets: FinanceBudget[];
@@ -18,15 +18,23 @@ export function SpendingTrendsCard({
     itemVariants
 }: SpendingTrendsCardProps) {
     const containerRef = useRef<HTMLDivElement>(null);
-    const [isVisible, setIsVisible] = useState(false);
+    const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (!containerRef.current) return;
+
+        // Set initial dimensions synchronously
+        const rect = containerRef.current.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+            setDimensions({ width: rect.width, height: rect.height });
+        }
 
         const observer = new ResizeObserver((entries) => {
             for (const entry of entries) {
                 const { width, height } = entry.contentRect;
-                setIsVisible(width > 0 && height > 0);
+                if (width > 0 && height > 0) {
+                    setDimensions({ width, height });
+                }
             }
         });
 
@@ -65,10 +73,10 @@ export function SpendingTrendsCard({
                 </div>
             </div>
 
-            <div ref={containerRef} className="flex-1 p-4 min-h-[250px] relative">
-                {isVisible && (
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={historyData}>
+            <div className="flex-1 min-h-[250px] relative">
+                <div ref={containerRef} className="absolute inset-4">
+                    {dimensions.width > 0 && dimensions.height > 0 && (
+                        <AreaChart width={dimensions.width} height={dimensions.height} data={historyData}>
                             <defs>
                                 <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
@@ -106,11 +114,11 @@ export function SpendingTrendsCard({
                                 strokeWidth={2}
                             />
                         </AreaChart>
-                    </ResponsiveContainer>
-                )}
+                    )}
+                </div>
 
                 {/* Time range selector overlay */}
-                <div className="absolute top-4 right-4 flex bg-bg-card/50 border border-border/10 rounded-sm overflow-hidden">
+                <div className="absolute top-4 right-4 flex bg-bg-card/50 border border-border/10 rounded-sm overflow-hidden z-10">
                     {['1D', '1W', '1M', '3M', '1Y', 'ALL'].map((range, i) => (
                         <button
                             key={range}

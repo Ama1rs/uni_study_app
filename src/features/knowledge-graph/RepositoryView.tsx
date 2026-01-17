@@ -77,7 +77,7 @@ export function RepositoryView({ repository, onBack }: RepositoryViewProps) {
     const [showStressTest, setShowStressTest] = useState(false);
     const [showRepositorySettings, setShowRepositorySettings] = useState(false);
     const [editingTagsResource, setEditingTagsResource] = useState<Resource | null>(null);
-    const [noteWidth, setNoteWidth] = useState(800);
+    const [noteWidth, setNoteWidth] = useState(700);
     const [linkPosition, setLinkPosition] = useState<{ x: number, y: number } | null>(null);
 
     const [confirmState, setConfirmState] = useState<{

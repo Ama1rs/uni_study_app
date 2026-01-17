@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion';
 import { Plus, MoreHorizontal } from 'lucide-react';
 import { FinanceAsset } from '@/lib/financeService';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { useState, useEffect, useRef } from 'react';
+import { PieChart, Pie, Cell, Tooltip } from 'recharts';
+import { useState, useLayoutEffect, useRef } from 'react';
 
 interface AssetAllocationCardProps {
     assets: FinanceAsset[];
@@ -17,15 +17,23 @@ export function AssetAllocationCard({
     itemVariants
 }: AssetAllocationCardProps) {
     const containerRef = useRef<HTMLDivElement>(null);
-    const [isVisible, setIsVisible] = useState(false);
+    const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (!containerRef.current) return;
+
+        // Set initial dimensions synchronously
+        const rect = containerRef.current.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+            setDimensions({ width: rect.width, height: rect.height });
+        }
 
         const observer = new ResizeObserver((entries) => {
             for (const entry of entries) {
                 const { width, height } = entry.contentRect;
-                setIsVisible(width > 0 && height > 0);
+                if (width > 0 && height > 0) {
+                    setDimensions({ width, height });
+                }
             }
         });
 
@@ -68,10 +76,10 @@ export function AssetAllocationCard({
 
             <div className="p-4 flex flex-col gap-6">
                 {/* CHART */}
-                <div ref={containerRef} className="h-[180px] w-full relative">
-                    {isVisible && (
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
+                <div className="h-[180px] w-full min-w-0 relative">
+                    <div ref={containerRef} className="absolute inset-0">
+                        {dimensions.width > 0 && dimensions.height > 0 && (
+                            <PieChart width={dimensions.width} height={dimensions.height}>
                                 <Pie
                                     data={data}
                                     cx="50%"
@@ -92,8 +100,8 @@ export function AssetAllocationCard({
                                     formatter={(value: number) => `$${value.toLocaleString()}`}
                                 />
                             </PieChart>
-                        </ResponsiveContainer>
-                    )}
+                        )}
+                    </div>
                     {/* Center Text */}
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
                         <span className="text-xs text-text-tertiary font-mono uppercase display-block">Total</span>

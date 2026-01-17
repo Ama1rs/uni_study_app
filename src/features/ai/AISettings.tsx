@@ -105,7 +105,7 @@ export function AISettings() {
             const result = await invoke<string>('load_gguf_model', {
                 modelPath: modelPath,
                 nGpuLayers: fullState?.n_gpu_layers ?? 0,
-                nCtx: fullState?.n_ctx ?? 2048,
+                nCtx: fullState?.n_ctx ?? 4096,
                 nThreads: fullState?.n_threads ?? 4
             });
             console.log(result);
@@ -134,15 +134,12 @@ export function AISettings() {
     return (
         <div className="p-6 space-y-6">
             <div className="flex justify-between items-start">
-                <div>
-                    <h2 className="text-xl font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>AI & Intelligence</h2>
-                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Configure your AI assistant provider</p>
-                </div>
+
                 <button
                     onClick={() => setShowAdvanced(!showAdvanced)}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${showAdvanced
-                            ? 'bg-accent text-black shadow-lg shadow-accent/20'
-                            : 'bg-bg-surface border border-border text-text-secondary hover:text-text-primary'
+                        ? 'bg-accent text-black shadow-lg shadow-accent/20'
+                        : 'bg-bg-surface border border-border text-text-secondary hover:text-text-primary'
                         }`}
                 >
                     <Settings2 size={14} />

@@ -25,7 +25,7 @@ export function RepositoryToolbar({
 
     return (
         <motion.div
-            className="flex-shrink-0 flex gap-4 p-6 border-b border-border bg-bg-base relative z-40"
+            className="flex-shrink-0 flex gap-4 px-6 py-4 border-b border-border bg-bg-base relative z-40"
             style={{ borderColor: 'var(--border)' }}
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
