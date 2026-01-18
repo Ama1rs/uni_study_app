@@ -742,7 +742,7 @@ function FilePreview({ paths, currentIndex, onIndexChange }: { paths: string[]; 
                                 src={assetUrl}
                                 alt="Preview"
                                 className="max-w-full max-h-full object-contain shadow-[0_0_80px_rgba(0,0,0,0.4)]"
-                                onError={(e) => {
+                                onError={() => {
                                     console.error("Preview failed to load:", assetUrl);
                                     // Fallback UI or attempt to fix URL if needed
                                 }}

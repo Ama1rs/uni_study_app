@@ -27,9 +27,28 @@ impl DatabaseManager {
             fs::create_dir_all(&app_dir).map_err(|e| e.to_string())?;
         }
 
-        // Initialize Global Database (Auth, Sessions, Registry)
+        // Initialize Global Database (Auth, Sessions, Registry) with optional encryption
         let global_db_path = app_dir.join("study_app.db");
         let global_conn = Connection::open(global_db_path).map_err(|e| e.to_string())?;
+        
+        // Check if encryption is needed
+        if Self::needs_encryption(&global_conn).unwrap_or(false) {
+            // Generate or retrieve encryption key
+            let encryption_key = Self::get_or_create_encryption_key(&app_handle)?;
+            
+            // Apply encryption key
+            global_conn
+                .pragma_update(None, "key", &encryption_key)
+                .map_err(|e| e.to_string())?;
+                
+            // Mark database as encrypted
+            global_conn
+                .execute(
+                    "UPDATE encryption_metadata SET is_encrypted = 1 WHERE id = 1",
+                    [],
+                )
+                .map_err(|e| e.to_string())?;
+        }
 
         // Run global migrations
         migrations::run_global_migrations(&global_conn).map_err(|e| e.to_string())?;
@@ -394,5 +413,82 @@ impl DatabaseManager {
 
         println!("Migration completed successfully.");
         Ok(())
+    }
+
+    /// Check if the database needs encryption (not yet encrypted but has encryption metadata table)
+    fn needs_encryption(conn: &Connection) -> Result<bool, String> {
+        // Check if encryption metadata table exists
+        let table_exists: bool = conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='encryption_metadata')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+
+        if !table_exists {
+            return Ok(false);
+        }
+
+        // Check if encryption is already applied
+        let is_encrypted: bool = conn
+            .query_row(
+                "SELECT is_encrypted FROM encryption_metadata WHERE id = 1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+
+        Ok(!is_encrypted)
+    }
+
+    /// Generate or retrieve a stable encryption key for this device
+    fn get_or_create_encryption_key(app_handle: &AppHandle) -> Result<String, String> {
+        use std::fs;
+        
+        // Try to read existing key file
+        let app_dir = app_handle
+            .path()
+            .app_data_dir()
+            .expect("failed to get app data dir");
+            
+        let key_file = app_dir.join(".db_key");
+        
+        if key_file.exists() {
+            let key_content = fs::read_to_string(&key_file)
+                .map_err(|e| format!("Failed to read encryption key: {}", e))?;
+                
+            // Validate key is 64 hex characters (32 bytes) for SQLCipher
+            if key_content.len() == 64 && key_content.chars().all(|c| c.is_ascii_hexdigit()) {
+                return Ok(key_content);
+            }
+        }
+        
+        // Generate new encryption key
+        use rand_core::OsRng;
+        use rand_core::RngCore;
+        
+        let mut key_bytes = [0u8; 32];
+        OsRng.fill_bytes(&mut key_bytes);
+        
+        let key_hex = hex::encode(&key_bytes);
+        
+        // Store key securely
+        fs::write(&key_file, &key_hex)
+            .map_err(|e| format!("Failed to store encryption key: {}", e))?;
+            
+        // Try to set file permissions (Unix systems)
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = fs::metadata(&key_file)
+                .map_err(|e| format!("Failed to get key file metadata: {}", e))?
+                .permissions();
+            perms.set_mode(0o600); // Read/write for owner only
+            fs::set_permissions(&key_file, perms)
+                .map_err(|e| format!("Failed to set key file permissions: {}", e))?;
+        }
+        
+        Ok(key_hex)
     }
 }

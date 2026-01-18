@@ -10,6 +10,7 @@ mod migrations;
 mod ollama;
 mod pdf_tools;
 mod projection;
+pub mod sync;
 mod youtube;
 
 use argon2::{
@@ -30,7 +31,7 @@ use finance::{
 use inference::SharedModelState;
 use ollama::{ChatMessage, ChatOptions, OllamaClient};
 use rand_core::OsRng;
-use rusqlite::OptionalExtension;
+use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Read;
@@ -109,6 +110,7 @@ pub struct UserPublic {
     pub id: i64,
     pub username: String,
     pub created_at: Option<String>,
+    pub is_cloud_user: bool,
 }
 
 pub use conversion::{
@@ -169,6 +171,7 @@ fn fetch_user_public(conn: &rusqlite::Connection, user_id: i64) -> AppResult<Use
                 id: row.get(0)?,
                 username: row.get(1)?,
                 created_at: row.get(2)?,
+                is_cloud_user: false,
             })
         },
     )
@@ -355,6 +358,9 @@ pub struct OnboardingState {
     pub temperature: Option<f32>,
     pub top_p: Option<f32>,
     pub max_tokens: Option<i32>,
+    pub usage_profile: Option<String>,
+    pub privacy_choice: Option<String>,
+    pub theme_preference: Option<String>,
 }
 
 #[tauri::command]
@@ -364,8 +370,32 @@ fn get_onboarding_state(state: State<DbState>) -> Result<OnboardingState, String
     let conn = conn_arc.lock().unwrap();
     tracing::debug!("get_onboarding_state: lock acquired");
 
+    // Check if new columns exist, if not use fallback query
+    let has_new_columns = conn.prepare("PRAGMA table_info(onboarding_state)")
+        .and_then(|mut stmt| {
+            let mut columns = Vec::new();
+            let rows = stmt.query_map([], |row| {
+                let column_name: String = row.get(1)?;
+                columns.push(column_name);
+                Ok(())
+            })?;
+            for row in rows {
+                row?;
+            }
+            Ok(columns.contains(&"usage_profile".to_string()) && 
+                   columns.contains(&"privacy_choice".to_string()) && 
+                   columns.contains(&"theme_preference".to_string()))
+        })
+        .unwrap_or(false);
+
+    let query = if has_new_columns {
+        "SELECT completed, ai_provider, ai_api_key, ai_endpoint, db_type, db_url, user_name, university, n_gpu_layers, n_ctx, n_threads, system_prompt, temperature, top_p, max_tokens, usage_profile, privacy_choice, theme_preference FROM onboarding_state WHERE id = 1"
+    } else {
+        "SELECT completed, ai_provider, ai_api_key, ai_endpoint, db_type, db_url, user_name, university, n_gpu_layers, n_ctx, n_threads, system_prompt, temperature, top_p, max_tokens FROM onboarding_state WHERE id = 1"
+    };
+
     let mut stmt = conn
-        .prepare("SELECT completed, ai_provider, ai_api_key, ai_endpoint, db_type, db_url, user_name, university, n_gpu_layers, n_ctx, n_threads, system_prompt, temperature, top_p, max_tokens FROM onboarding_state WHERE id = 1")
+        .prepare(query)
         .map_err(|e| {
             tracing::error!("get_onboarding_state: prepare failed: {}", e);
             e.to_string()
@@ -383,23 +413,50 @@ fn get_onboarding_state(state: State<DbState>) -> Result<OnboardingState, String
         e.to_string()
     })? {
         tracing::info!("Found existing onboarding state");
-        Ok(OnboardingState {
-            completed: row.get(0).unwrap_or(false),
-            ai_provider: row.get(1).ok(),
-            ai_api_key: row.get(2).ok(),
-            ai_endpoint: row.get(3).ok(),
-            db_type: row.get(4).ok(),
-            db_url: row.get(5).ok(),
-            user_name: row.get(6).ok(),
-            university: row.get(7).ok(),
-            n_gpu_layers: row.get(8).ok(),
-            n_ctx: row.get(9).ok(),
-            n_threads: row.get(10).ok(),
-            system_prompt: row.get(11).ok(),
-            temperature: row.get(12).ok(),
-            top_p: row.get(13).ok(),
-            max_tokens: row.get(14).ok(),
-        })
+        let state = if has_new_columns {
+            OnboardingState {
+                completed: row.get(0).unwrap_or(false),
+                ai_provider: row.get(1).ok(),
+                ai_api_key: row.get(2).ok(),
+                ai_endpoint: row.get(3).ok(),
+                db_type: row.get(4).ok(),
+                db_url: row.get(5).ok(),
+                user_name: row.get(6).ok(),
+                university: row.get(7).ok(),
+                n_gpu_layers: row.get(8).ok(),
+                n_ctx: row.get(9).ok(),
+                n_threads: row.get(10).ok(),
+                system_prompt: row.get(11).ok(),
+                temperature: row.get(12).ok(),
+                top_p: row.get(13).ok(),
+                max_tokens: row.get(14).ok(),
+                usage_profile: row.get(15).ok(),
+                privacy_choice: row.get(16).ok(),
+                theme_preference: row.get(17).ok(),
+            }
+        } else {
+            OnboardingState {
+                completed: row.get(0).unwrap_or(false),
+                ai_provider: row.get(1).ok(),
+                ai_api_key: row.get(2).ok(),
+                ai_endpoint: row.get(3).ok(),
+                db_type: row.get(4).ok(),
+                db_url: row.get(5).ok(),
+                user_name: row.get(6).ok(),
+                university: row.get(7).ok(),
+                n_gpu_layers: row.get(8).ok(),
+                n_ctx: row.get(9).ok(),
+                n_threads: row.get(10).ok(),
+                system_prompt: row.get(11).ok(),
+                temperature: row.get(12).ok(),
+                top_p: row.get(13).ok(),
+                max_tokens: row.get(14).ok(),
+                usage_profile: None,
+                privacy_choice: None,
+                theme_preference: None,
+            }
+        };
+        Ok(state)
     } else {
         tracing::info!("No onboarding state found, returning default");
         Ok(OnboardingState::default())
@@ -421,44 +478,110 @@ fn set_onboarding_state(
     // Also use global conn to update session user_id mapping if university or name changes?
     // No, that's in user_profiles.
 
-    conn.execute(
-        "INSERT INTO onboarding_state (id, completed, ai_provider, ai_api_key, ai_endpoint, db_type, db_url, user_name, university, n_gpu_layers, n_ctx, n_threads, system_prompt, temperature, top_p, max_tokens)
-        VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
-        ON CONFLICT(id) DO UPDATE SET
-            completed=excluded.completed,
-            ai_provider=excluded.ai_provider,
-            ai_api_key=excluded.ai_api_key,
-            ai_endpoint=excluded.ai_endpoint,
-            db_type=excluded.db_type,
-            db_url=excluded.db_url,
-            user_name=excluded.user_name,
-            university=excluded.university,
-            n_gpu_layers=excluded.n_gpu_layers,
-            n_ctx=excluded.n_ctx,
-            n_threads=excluded.n_threads,
-            system_prompt=excluded.system_prompt,
-            temperature=excluded.temperature,
-            top_p=excluded.top_p,
-            max_tokens=excluded.max_tokens",
+    // Check if new columns exist
+    let has_new_columns = conn.prepare("PRAGMA table_info(onboarding_state)")
+        .and_then(|mut stmt| {
+            let mut columns = Vec::new();
+            let rows = stmt.query_map([], |row| {
+                let column_name: String = row.get(1)?;
+                columns.push(column_name);
+                Ok(())
+            })?;
+            for row in rows {
+                row?;
+            }
+            Ok(columns.contains(&"usage_profile".to_string()) && 
+                   columns.contains(&"privacy_choice".to_string()) && 
+                   columns.contains(&"theme_preference".to_string()))
+        })
+        .unwrap_or(false);
+
+    let (query, params) = if has_new_columns {
         (
-            onboarding_state.completed,
-            onboarding_state.ai_provider,
-            onboarding_state.ai_api_key,
-            onboarding_state.ai_endpoint,
-            onboarding_state.db_type,
-            onboarding_state.db_url,
-            onboarding_state.user_name,
-            onboarding_state.university,
-            onboarding_state.n_gpu_layers,
-            onboarding_state.n_ctx,
-            onboarding_state.n_threads,
-            onboarding_state.system_prompt,
-            onboarding_state.temperature,
-            onboarding_state.top_p,
-            onboarding_state.max_tokens,
-        ),
-    )
-    .map_err(|e| e.to_string())?;
+            "INSERT INTO onboarding_state (id, completed, ai_provider, ai_api_key, ai_endpoint, db_type, db_url, user_name, university, n_gpu_layers, n_ctx, n_threads, system_prompt, temperature, top_p, max_tokens, usage_profile, privacy_choice, theme_preference)
+            VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
+            ON CONFLICT(id) DO UPDATE SET
+                completed=excluded.completed,
+                ai_provider=excluded.ai_provider,
+                ai_api_key=excluded.ai_api_key,
+                ai_endpoint=excluded.ai_endpoint,
+                db_type=excluded.db_type,
+                db_url=excluded.db_url,
+                user_name=excluded.user_name,
+                university=excluded.university,
+                n_gpu_layers=excluded.n_gpu_layers,
+                n_ctx=excluded.n_ctx,
+                n_threads=excluded.n_threads,
+                system_prompt=excluded.system_prompt,
+                temperature=excluded.temperature,
+                top_p=excluded.top_p,
+                max_tokens=excluded.max_tokens,
+                usage_profile=excluded.usage_profile,
+                privacy_choice=excluded.privacy_choice,
+                theme_preference=excluded.theme_preference",
+            params![
+                onboarding_state.completed,
+                onboarding_state.ai_provider,
+                onboarding_state.ai_api_key,
+                onboarding_state.ai_endpoint,
+                onboarding_state.db_type,
+                onboarding_state.db_url,
+                onboarding_state.user_name,
+                onboarding_state.university,
+                onboarding_state.n_gpu_layers,
+                onboarding_state.n_ctx,
+                onboarding_state.n_threads,
+                onboarding_state.system_prompt,
+                onboarding_state.temperature,
+                onboarding_state.top_p,
+                onboarding_state.max_tokens,
+                onboarding_state.usage_profile,
+                onboarding_state.privacy_choice,
+                onboarding_state.theme_preference,
+            ]
+        )
+    } else {
+        (
+            "INSERT INTO onboarding_state (id, completed, ai_provider, ai_api_key, ai_endpoint, db_type, db_url, user_name, university, n_gpu_layers, n_ctx, n_threads, system_prompt, temperature, top_p, max_tokens)
+            VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+            ON CONFLICT(id) DO UPDATE SET
+                completed=excluded.completed,
+                ai_provider=excluded.ai_provider,
+                ai_api_key=excluded.ai_api_key,
+                ai_endpoint=excluded.ai_endpoint,
+                db_type=excluded.db_type,
+                db_url=excluded.db_url,
+                user_name=excluded.user_name,
+                university=excluded.university,
+                n_gpu_layers=excluded.n_gpu_layers,
+                n_ctx=excluded.n_ctx,
+                n_threads=excluded.n_threads,
+                system_prompt=excluded.system_prompt,
+                temperature=excluded.temperature,
+                top_p=excluded.top_p,
+                max_tokens=excluded.max_tokens",
+            params![
+                onboarding_state.completed,
+                onboarding_state.ai_provider,
+                onboarding_state.ai_api_key,
+                onboarding_state.ai_endpoint,
+                onboarding_state.db_type,
+                onboarding_state.db_url,
+                onboarding_state.user_name,
+                onboarding_state.university,
+                onboarding_state.n_gpu_layers,
+                onboarding_state.n_ctx,
+                onboarding_state.n_threads,
+                onboarding_state.system_prompt,
+                onboarding_state.temperature,
+                onboarding_state.top_p,
+                onboarding_state.max_tokens,
+            ]
+        )
+    };
+
+    conn.execute(query, params)
+        .map_err(|e| e.to_string())?;
 
     tracing::info!("set_onboarding_state success");
     Ok(())
@@ -1755,9 +1878,25 @@ pub fn run() {
             start_study_session,
             stop_study_session,
             get_study_sessions,
-            create_d_day,
+create_d_day,
             get_d_days,
-            delete_d_day
+            delete_d_day,
+            // Sync & Identity Commands
+            sync::get_device_id,
+            sync::get_sync_state,
+            sync::set_sync_state,
+            sync::update_device_last_seen,
+            sync::revoke_device,
+            sync::check_first_time_sync_guard,
+            sync::clear_first_time_sync_guard,
+            sync::is_database_encrypted,
+            sync::get_encryption_status,
+            // Migration Commands
+            sync::check_migration_eligibility,
+            sync::initiate_local_to_cloud_migration,
+            sync::get_migration_progress,
+            sync::complete_migration,
+            sync::rollback_migration
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

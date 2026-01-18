@@ -6041,6 +6041,7 @@ dependencies = [
  "argon2",
  "base64 0.22.1",
  "chrono",
+ "hex",
  "image",
  "llama-cpp-2",
  "llama-cpp-sys-2",

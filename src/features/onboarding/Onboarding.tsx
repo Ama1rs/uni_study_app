@@ -2,55 +2,56 @@ import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { WelcomeStep } from './WelcomeStep';
 import { AISetupStep } from './AISetupStep';
-import { DatabaseSetupStep } from './DatabaseSetupStep';
-import { ProfileSetupStep } from './ProfileSetupStep';
-import { ThemeSetupStep } from './ThemeSetupStep';
+import { BasicProfileStep } from './BasicProfileStep';
 
 interface OnboardingData {
-    aiProvider?: 'gemini' | 'local';
-    aiApiKey?: string;
-    aiEndpoint?: string;
-    dbType?: 'sqlite' | 'supabase';
-    dbUrl?: string;
-    dbKey?: string;
+    aiSource?: 'api' | 'local';
+    usageProfile?: 'study' | 'writing' | 'general';
+    apiEndpoint?: string;
     name?: string;
-    university?: string;
+    themePreference?: 'light' | 'dark';
+    privacyChoice?: 'local' | 'cloud-ready';
 }
 
-export function Onboarding({ userId, onComplete }: { userId?: number; onComplete: () => void }) {
-    const [step, setStep] = useState<'welcome' | 'ai' | 'db' | 'theme' | 'profile'>('welcome');
+export function Onboarding({ userId, onComplete }: { userId: number; onComplete: () => void }) {
+    const [step, setStep] = useState<'welcome' | 'ai' | 'profile'>('welcome');
     const [data, setData] = useState<OnboardingData>({});
 
     const updateData = (newData: Partial<OnboardingData>) => {
         setData(prev => ({ ...prev, ...newData }));
     };
 
-    const steps = ['welcome', 'ai', 'db', 'theme', 'profile'];
+    const steps = ['welcome', 'ai', 'profile'];
     const currentIndex = steps.indexOf(step);
 
     const handleWelcomeNext = () => setStep('ai');
 
-    const handleAINext = (aiData: { provider: 'gemini' | 'local'; apiKey?: string; endpoint?: string }) => {
-        updateData({ aiProvider: aiData.provider, aiApiKey: aiData.apiKey, aiEndpoint: aiData.endpoint });
-        setStep('db');
+    const handleAINext = (aiData: { source: 'api' | 'local'; usageProfile: 'study' | 'writing' | 'general'; apiEndpoint?: string }) => {
+        updateData({ aiSource: aiData.source, usageProfile: aiData.usageProfile, apiEndpoint: aiData.apiEndpoint });
+        setStep('profile');
     };
 
-    const handleDBNext = (dbData: { type: 'sqlite' | 'supabase'; url?: string; key?: string }) => {
-        updateData({ dbType: dbData.type, dbUrl: dbData.url, dbKey: dbData.key });
-        setStep('theme');
+    const getSystemPromptForUsageProfile = (profile: string): string => {
+        switch (profile) {
+            case 'study':
+                return "You are a helpful AI study assistant. Focus on helping with note-taking, summarization, flashcard creation, and explaining complex academic concepts clearly and concisely.";
+            case 'writing':
+                return "You are a helpful AI writing assistant. Focus on helping with essays, research papers, document structure, grammar, and academic writing improvement.";
+            case 'general':
+            default:
+                return "You are a helpful AI assistant ready to help with a wide variety of tasks including studying, writing, and general assistance.";
+        }
     };
 
-    const handleThemeNext = () => setStep('profile');
-
-    const handleProfileComplete = async (profileData: { name: string; university: string }) => {
+    const handleProfileComplete = async (profileData: { name: string; themePreference: 'light' | 'dark'; privacyChoice: 'local' | 'cloud-ready' }) => {
         const finalData = { ...data, ...profileData };
         try {
             if (userId) {
                 await invoke('set_user_profile', {
                     profile: {
                         id: userId,
-                        name: finalData.name ?? profileData.name,
-                        university: finalData.university ?? profileData.university,
+                        name: finalData.name,
+                        university: null, // No longer required
                         avatar_path: null
                     }
                 });
@@ -59,13 +60,17 @@ export function Onboarding({ userId, onComplete }: { userId?: number; onComplete
             await invoke('set_onboarding_state', {
                 onboardingState: {
                     completed: true,
-                    ai_provider: finalData.aiProvider,
-                    ai_api_key: finalData.aiApiKey,
-                    ai_endpoint: finalData.aiEndpoint,
-                    db_type: finalData.dbType,
-                    db_url: finalData.dbUrl,
+                    ai_provider: finalData.aiSource === 'api' ? 'gemini' : 'local',
+                    ai_api_key: finalData.aiSource === 'api' ? finalData.apiEndpoint : null,
+                    ai_endpoint: finalData.aiSource === 'local' ? 'http://localhost:11434' : null,
+                    db_type: 'sqlite',
+                    db_url: null,
                     user_name: finalData.name,
-                    university: finalData.university
+                    university: null,
+                    usage_profile: finalData.usageProfile,
+                    privacy_choice: finalData.privacyChoice,
+                    theme_preference: finalData.themePreference,
+                    system_prompt: getSystemPromptForUsageProfile(finalData.usageProfile || 'general')
                 }
             });
             onComplete();
@@ -92,9 +97,7 @@ export function Onboarding({ userId, onComplete }: { userId?: number; onComplete
                 <div className="flex-1 min-h-0 overflow-y-auto p-6 flex flex-col justify-center">
                     {step === 'welcome' && <WelcomeStep onNext={handleWelcomeNext} />}
                     {step === 'ai' && <AISetupStep onNext={handleAINext} onBack={() => setStep('welcome')} />}
-                    {step === 'db' && <DatabaseSetupStep onNext={handleDBNext} onBack={() => setStep('ai')} />}
-                    {step === 'theme' && <ThemeSetupStep onNext={handleThemeNext} onBack={() => setStep('db')} />}
-                    {step === 'profile' && <ProfileSetupStep onComplete={handleProfileComplete} onBack={() => setStep('theme')} />}
+                    {step === 'profile' && <BasicProfileStep onComplete={handleProfileComplete} onBack={() => setStep('ai')} />}
                 </div>
             </div>
         </div>

@@ -102,6 +102,22 @@ pub fn run_profile_migrations(conn: &Connection) -> Result<()> {
             "0020_add_indexes",
             include_str!("../migrations/0020_add_indexes.sql"),
         ),
+        (
+            "0021_supabase_sync_init",
+            include_str!("../migrations/0021_supabase_sync_init.sql"),
+        ),
+        (
+            "0023_fix_device_identity_columns",
+            include_str!("../migrations/0023_fix_device_identity_columns.sql"),
+        ),
+        (
+            "0024_migration_system",
+            include_str!("../migrations/0024_migration_system.sql"),
+        ),
+        (
+            "0025_streamline_onboarding",
+            include_str!("../migrations/0025_streamline_onboarding.sql"),
+        ),
     ];
 
     apply_migrations(conn, migrations)

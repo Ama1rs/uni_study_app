@@ -8,6 +8,7 @@ interface UserPublic {
     id: number;
     username: string;
     created_at?: string;
+    is_cloud_user?: boolean;
 }
 
 export function useAppInitialization() {
@@ -61,15 +62,23 @@ export function useAppInitialization() {
         }
     };
 
-    const handleAuthenticated = async (user: UserPublic) => {
+    const handleAuthenticated = async (user: UserPublic, authType: 'local' | 'cloud') => {
         try {
             setCurrentUser(user);
             await Promise.all([
                 refreshProfile(),
                 refreshSettings()
             ]);
+            
+            // Check if onboarding is needed - only for local users
             const onboardingState = await invoke<{ completed: boolean }>('get_onboarding_state');
-            setOnboardingComplete(onboardingState.completed);
+            
+            // Cloud users don't need onboarding since their config comes from the cloud
+            if (authType === 'cloud') {
+                setOnboardingComplete(true);
+            } else {
+                setOnboardingComplete(onboardingState.completed);
+            }
         } catch (error) {
             console.error("Failed to switch profile:", error);
         }

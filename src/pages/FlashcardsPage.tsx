@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Resource, Flashcard } from '../types/node-system';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, Layers, ChevronRight, Brain, ArrowRight, Flame, Trophy, Sparkles } from 'lucide-react';
+import { BookOpen, Layers, ChevronRight, Brain, ArrowRight, Flame, Trophy } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 

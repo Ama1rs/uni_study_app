@@ -58,19 +58,20 @@ function AppContent() {
   if (authChecked && !currentUser) {
     return (
       <AuthScreen
-        onAuthenticated={async (user) => {
+        onAuthenticated={async (user, authType) => {
           setIsSwitchingProfile(true);
-          await handleAuthenticated(user);
+          await handleAuthenticated(user, authType);
           setIsSwitchingProfile(false);
         }}
       />
     );
   }
 
-  if (!onboardingComplete) {
+  // Only show onboarding for local users who haven't completed it
+  if (!onboardingComplete && currentUser && !currentUser.is_cloud_user) {
     return (
       <Onboarding
-        userId={currentUser?.id}
+        userId={currentUser.id}
         onComplete={() => setOnboardingComplete(true)}
       />
     );
