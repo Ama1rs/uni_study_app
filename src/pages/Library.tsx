@@ -6,6 +6,7 @@ import { Book, Search, Grid, List as ListIcon, Upload, Clock } from 'lucide-reac
 import { Resource } from '@/types/node-system';
 import { Button } from '@/components/ui/Button';
 import { parseBookMetadata } from '@/utils/bookUtils';
+import { SkeletonCard, Skeleton } from '@/components/ui/Skeleton';
 
 interface LibraryProps {
     onOpenBook?: (book: Resource) => void;
@@ -128,12 +129,18 @@ export function Library({ onOpenBook }: LibraryProps) {
     }, [books, progressData, searchQuery, sortMode]);
 
 
-    if (isLoading) {
+if (isLoading) {
         return (
-            <div className="flex items-center justify-center h-full">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin" />
-                    <p className="text-text-secondary font-mono text-sm">Loading library...</p>
+            <div className="flex flex-col h-full w-full bg-bg-primary">
+                <div className="flex-shrink-0 px-6 py-3 border-b border-border/30 bg-bg-surface/50 backdrop-blur-sm">
+                    <Skeleton width={150} height={24} />
+                </div>
+                <div className="flex-1 p-6">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                        {Array.from({ length: 12 }).map((_, i) => (
+                            <SkeletonCard key={i} />
+                        ))}
+                    </div>
                 </div>
             </div>
         );

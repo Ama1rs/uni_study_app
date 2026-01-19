@@ -5,7 +5,7 @@ export function WelcomeStep({ onNext }: { onNext: () => void }) {
         <div className="flex flex-col items-center text-center py-8">
             {/* Logo */}
             <div className="w-16 h-16 bg-accent rounded-xl flex items-center justify-center shadow-lg shadow-accent/20 mb-6">
-                <span className="text-black font-bold text-3xl">A</span>
+                <span className="text-white font-bold text-3xl">A</span>
             </div>
 
             {/* Text */}
@@ -19,7 +19,7 @@ export function WelcomeStep({ onNext }: { onNext: () => void }) {
             {/* CTA */}
             <button
                 onClick={onNext}
-                className="px-8 py-3 bg-accent text-black rounded-lg font-semibold text-sm flex items-center gap-2 hover:opacity-90 transition-opacity"
+                className="px-8 py-3 bg-accent text-white rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-accent-hover transition-colors"
             >
                 Get Started
                 <ArrowRight size={16} />

@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { Bot, Cpu, Key, FolderOpen, Save, Loader2, CheckCircle2, XCircle, Trash2, Settings2 } from 'lucide-react';
 import { AdvancedLLMSettings } from './AdvancedLLMSettings';
+import logger from '@/lib/logger';
 
 interface OnboardingState {
     completed: boolean;
@@ -107,8 +108,8 @@ export function AISettings() {
                 nGpuLayers: fullState?.n_gpu_layers ?? 0,
                 nCtx: fullState?.n_ctx ?? 4096,
                 nThreads: fullState?.n_threads ?? 4
-            });
-            console.log(result);
+});
+            logger.debug(result);
             await checkModelStatus();
         } catch (error) {
             console.error("Failed to load model:", error);

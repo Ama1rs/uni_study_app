@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import logger from '@/lib/logger';
 import { 
     ArrowLeft, 
     ArrowRight, 
@@ -71,7 +72,7 @@ export function MigrationWizard({ from, to, onComplete, onCancel }: MigrationWiz
         const migrationId = `migration_${Date.now()}`;
         
         try {
-            console.log('Starting migration with ID:', migrationId);
+            logger.debug('Starting migration with ID:', migrationId);
             await invoke('initiate_local_to_cloud_migration', { migrationId });
             await monitorMigrationProgress(migrationId);
         } catch (error) {
@@ -81,7 +82,7 @@ export function MigrationWizard({ from, to, onComplete, onCancel }: MigrationWiz
     };
 
     const monitorMigrationProgress = async (migrationId: string) => {
-        console.log('Monitoring migration progress for:', migrationId);
+        logger.debug('Monitoring migration progress for:', migrationId);
         const checkProgress = async () => {
             try {
                 const progress = await invoke<MigrationProgress>('get_migration_progress');

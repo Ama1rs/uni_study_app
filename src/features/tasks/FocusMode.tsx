@@ -4,11 +4,9 @@ import { invoke } from '@tauri-apps/api/core';
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '../../contexts/ThemeContext';
+import { RepositoryNumber } from '../../lib/typeAdapters';
 
-interface Repository {
-    id: number;
-    name: string;
-}
+export type Repository = RepositoryNumber;
 
 interface DDay {
     id: number;
@@ -44,7 +42,7 @@ export function FocusMode({ activeView }: FocusModeProps) {
     const [elapsedTime, setElapsedTime] = useState(0); // For stopwatch
     const [sessionType, setSessionType] = useState<'focus' | 'break' | 'stopwatch'>('focus');
     const [selectedRepo, setSelectedRepo] = useState<number | null>(null);
-    const [repos, setRepos] = useState<Repository[]>([]);
+    const [repos, setRepos] = useState<RepositoryNumber[]>([]);
     const [dDays, setDDays] = useState<DDay[]>([]);
     const [tasks, setTasks] = useState<Task[]>([]);
     const [sessions, setSessions] = useState<StudySession[]>([]);

@@ -5,6 +5,7 @@ import { BookReaderControls } from '@/features/books/BookReaderControls';
 import { X, List, ArrowLeft, Book as BookIcon } from 'lucide-react';
 import { Resource } from '@/types/node-system';
 import { invoke } from '@tauri-apps/api/core';
+import logger from '@/lib/logger';
 
 interface BookReaderProps {
     resource: Resource;
@@ -49,11 +50,11 @@ export function BookReader({ resource, onClose }: BookReaderProps) {
                     throw new Error('Book path is missing');
                 }
 
-                // Create book instance
-                console.log('BookReader: Loading binary data via invoke...');
+// Create book instance
+                logger.debug('BookReader: Loading binary data via invoke...');
                 const base64 = await invoke<string>('read_file_base64', { path: resource.path });
                 if (isCancelled) return;
-                console.log('BookReader: Data received, length:', base64.length);
+                logger.debug('BookReader: Data received, length:', base64.length);
 
                 const binaryString = atob(base64);
                 const bytes = new Uint8Array(binaryString.length);
@@ -71,14 +72,14 @@ export function BookReader({ resource, onClose }: BookReaderProps) {
                     bookRef.current = null;
                 }
 
-                const book = ePub(bytes.buffer);
-                console.log('BookReader: Initialized book object, waiting for opened...');
+const book = ePub(bytes.buffer);
+                logger.debug('BookReader: Initialized book object, waiting for opened...');
                 await book.opened;
                 if (isCancelled) {
                     book.destroy();
                     return;
                 }
-                console.log('BookReader: Book opened and parsed.');
+                logger.debug('BookReader: Book opened and parsed.');
                 bookRef.current = book;
 
                 // Ensure viewerRef.current exists
@@ -99,42 +100,42 @@ export function BookReader({ resource, onClose }: BookReaderProps) {
                 // Apply initial theme
                 applyTheme(theme, rendition);
 
-                // Display the book
-                console.log('BookReader: Attempting rendition.display()...');
+// Display the book
+                logger.debug('BookReader: Attempting rendition.display()...');
                 await rendition.display();
                 if (isCancelled) return;
-                console.log('BookReader: rendition.display() completed.');
+                logger.debug('BookReader: rendition.display() completed.');
                 setIsLoading(false);
 
                 // Load table of contents
                 try {
                     const navigation = await book.loaded.navigation;
                     if (!isCancelled) setToc(navigation.toc);
-                    console.log('BookReader: TOC loaded.');
+                    logger.debug('BookReader: TOC loaded.');
                 } catch (tocErr) {
-                    console.error('BookReader: Failed to load TOC:', tocErr);
+                    logger.error('BookReader: Failed to load TOC:', tocErr);
                 }
 
                 // Generate locations for progress tracking in background
                 book.locations.generate(1024)
                     .then(() => {
-                        if (!isCancelled) console.log('BookReader: Locations generated.');
+                        if (!isCancelled) logger.debug('BookReader: Locations generated.');
                     })
-                    .catch(locErr => console.error('BookReader: Failed to generate locations:', locErr));
+                    .catch(locErr => logger.error('BookReader: Failed to generate locations:', locErr));
 
                 // Load saved progress
                 try {
                     const savedProgress: any = await invoke('get_book_progress', { resourceId: resource.id });
                     if (isCancelled) return;
-                    if (savedProgress && savedProgress.current_location) {
-                        console.log('BookReader: Restoring position:', savedProgress.current_location);
+if (savedProgress && savedProgress.current_location) {
+                        logger.debug('BookReader: Restoring position:', savedProgress.current_location);
                         await rendition.display(savedProgress.current_location);
                         if (book.locations.length() > 0) {
                             setProgress(Math.round(book.locations.percentageFromCfi(savedProgress.current_location) * 100));
                         }
                     }
                 } catch (err) {
-                    console.log('BookReader: No saved progress found.');
+                    logger.debug('BookReader: No saved progress found.');
                 }
 
                 // Track location changes and save progress
@@ -144,7 +145,7 @@ export function BookReader({ resource, onClose }: BookReaderProps) {
                     const href = location.start.href;
                     setCurrentHref(href);
 
-                    console.log('BookReader: Relocated to', cfi, href);
+                    logger.debug('BookReader: Relocated to', cfi, href);
 
                     if (book.locations.length() > 0) {
                         const percentage = book.locations.percentageFromCfi(cfi);
@@ -192,8 +193,8 @@ export function BookReader({ resource, onClose }: BookReaderProps) {
     }, [resource.path, resource.id]);
 
     // Apply theme
-    const applyTheme = (themeName: 'light' | 'dark' | 'sepia', rendition?: Rendition) => {
-        console.log('BookReader: Applying theme:', themeName);
+const applyTheme = (themeName: 'light' | 'dark' | 'sepia', rendition?: Rendition) => {
+        logger.debug('BookReader: Applying theme:', themeName);
         const r = rendition || renditionRef.current;
         if (!r) return;
 
@@ -228,23 +229,23 @@ export function BookReader({ resource, onClose }: BookReaderProps) {
         }
     }, [fontFamily]);
 
-    const handlePrevPage = useCallback(() => {
-        console.log('BookReader: Previous page requested');
+const handlePrevPage = useCallback(() => {
+        logger.debug('BookReader: Previous page requested');
         if (renditionRef.current) {
             renditionRef.current.prev();
         }
     }, []);
 
     const handleNextPage = useCallback(() => {
-        console.log('BookReader: Next page requested');
+        logger.debug('BookReader: Next page requested');
         if (renditionRef.current) {
             renditionRef.current.next();
         }
     }, []);
 
-    const handleGoToChapter = useCallback((href: string) => {
+const handleGoToChapter = useCallback((href: string) => {
         if (renditionRef.current) {
-            console.log('BookReader: Navigating to chapter:', href);
+            logger.debug('BookReader: Navigating to chapter:', href);
             renditionRef.current.display(href);
             setShowToc(false);
         }

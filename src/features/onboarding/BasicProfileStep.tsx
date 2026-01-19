@@ -44,7 +44,7 @@ export function BasicProfileStep({ onComplete, onBack }: BasicProfileStepProps) 
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             placeholder="Your name"
-                            className="w-full pl-10 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-text-primary placeholder-text-tertiary text-sm focus:outline-none focus:border-accent"
+                            className="w-full pl-10 pr-3 py-2.5 bg-surface border rounded-lg text-text-primary placeholder-text-tertiary text-sm focus:outline-none focus:border-accent"
                         />
                     </div>
                 </div>
@@ -57,7 +57,7 @@ export function BasicProfileStep({ onComplete, onBack }: BasicProfileStepProps) 
                             onClick={() => handleThemeChange('light')}
                             className={`p-3 rounded-lg border flex items-center justify-center gap-2 transition-all ${themePreference === 'light'
                                     ? 'border-accent bg-accent/10 text-text-primary'
-                                    : 'border-white/10 bg-white/5 text-text-secondary hover:border-white/20'
+                                    : 'border bg-surface text-text-secondary hover:border hover:bg-hover'
                                 }`}
                         >
                             <Sun size={16} />
@@ -67,7 +67,7 @@ export function BasicProfileStep({ onComplete, onBack }: BasicProfileStepProps) 
                             onClick={() => handleThemeChange('dark')}
                             className={`p-3 rounded-lg border flex items-center justify-center gap-2 transition-all ${themePreference === 'dark'
                                     ? 'border-accent bg-accent/10 text-text-primary'
-                                    : 'border-white/10 bg-white/5 text-text-secondary hover:border-white/20'
+                                    : 'border bg-surface text-text-secondary hover:border hover:bg-hover'
                                 }`}
                         >
                             <Moon size={16} />
@@ -78,13 +78,13 @@ export function BasicProfileStep({ onComplete, onBack }: BasicProfileStepProps) 
 
                 {/* Data Preference */}
                 <div>
-                    <label className="block text-xs text-text-secondary mb-2">Data Storage</label>
+                    <label className="block text-xs text-xs text-text-secondary mb-2">Data Storage</label>
                     <div className="space-y-2">
                         <button
                             onClick={() => setPrivacyChoice('local')}
                             className={`w-full p-3 rounded-lg border text-left transition-all ${privacyChoice === 'local'
                                     ? 'border-accent bg-accent/10'
-                                    : 'border-white/10 bg-white/5 hover:border-white/20'
+                                    : 'border bg-surface hover:border hover:bg-hover'
                                 }`}
                         >
                             <div className="flex items-center gap-3">
@@ -99,7 +99,7 @@ export function BasicProfileStep({ onComplete, onBack }: BasicProfileStepProps) 
                             onClick={() => setPrivacyChoice('cloud-ready')}
                             className={`w-full p-3 rounded-lg border text-left transition-all ${privacyChoice === 'cloud-ready'
                                     ? 'border-accent bg-accent/10'
-                                    : 'border-white/10 bg-white/5 hover:border-white/20'
+                                    : 'border bg-surface hover:border hover:bg-hover'
                                 }`}
                         >
                             <div className="flex items-center gap-3">
@@ -122,7 +122,7 @@ export function BasicProfileStep({ onComplete, onBack }: BasicProfileStepProps) 
                 <button
                     onClick={handleSubmit}
                     disabled={!name}
-                    className="px-4 py-2 bg-accent text-black rounded-md text-sm font-medium flex items-center gap-1 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 bg-accent text-white rounded-md text-sm font-medium flex items-center gap-1 hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                     Complete <Check size={14} />
                 </button>

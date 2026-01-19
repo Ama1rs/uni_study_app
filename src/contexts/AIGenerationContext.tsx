@@ -1,12 +1,13 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { DocumentGenerationRequest, PresentationGenerationRequest } from '../types/ai';
 
 export interface GenerationState {
     isGenerating: boolean;
-    generationData: any;
+    generationData: DocumentGenerationRequest | PresentationGenerationRequest | null;
     generatedContent: string;
     error?: string;
-    documentFormData: any;
-    presentationFormData: any;
+    documentFormData: DocumentGenerationRequest;
+    presentationFormData: PresentationGenerationRequest;
 }
 
 interface AIGenerationContextType {
@@ -19,7 +20,7 @@ const STORAGE_KEY = 'ai_generation_state';
 
 const defaultState: GenerationState = {
     isGenerating: false,
-    generationData: null,
+    generationData: null as DocumentGenerationRequest | PresentationGenerationRequest | null,
     generatedContent: '',
     error: undefined,
     documentFormData: {
@@ -35,14 +36,17 @@ const defaultState: GenerationState = {
         section_structure: 'auto',
         reference_material: ''
     },
-    presentationFormData: {
+presentationFormData: {
         title: '',
         topic: '',
         description: '',
         target_audience: 'student',
         tone: 'visual',
+        length: 'medium',
         slide_count: '10',
         language: 'English',
+        presentation_type: 'presentation',
+        structure: 'auto',
         template: 'modern',
         include_images: true,
         reference_material: ''

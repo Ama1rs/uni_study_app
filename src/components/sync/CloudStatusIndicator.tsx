@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useCloudStatus } from '@/hooks/useCloudStatus';
 import { Cloud, CloudOff, CheckCircle, Activity } from 'lucide-react';
+import logger from '@/lib/logger';
 
 // Expose debug functions to window
 declare global {
@@ -200,7 +201,7 @@ export function CloudStatusIndicator({ className, showDetails = false }: CloudSt
                 Run Debug
               </button>
               <button
-                onClick={() => console.log('Cloud Status:', window.cloudStatusDebug)}
+                onClick={() => logger.debug('Cloud Status:', window.cloudStatusDebug)}
                 className="px-3 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
               >
                 Log Status

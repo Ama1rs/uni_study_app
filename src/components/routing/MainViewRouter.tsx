@@ -1,25 +1,32 @@
 import { Layout } from '@/components/layout/Layout';
 import { Resource } from '@/types/node-system';
-import { StudyRepository } from '@/pages/StudyRepository';
-import { Planner } from '@/pages/Planner';
-import { FocusMode } from '@/features/tasks/FocusMode';
-import { ChatLocalLLM } from '@/features/ai/ChatLocalLLM';
+import { Suspense, lazy } from 'react';
+import { Skeleton, SkeletonCard, SkeletonTable } from '@/components/ui/Skeleton';
 import { AIDocumentCreate, DocumentGenerationData } from '@/features/ai/AIDocumentCreate';
-import { AIPresentationCreate, PresentationGenerationData } from '@/features/ai/AIPresentationCreate';
-import { AIDocumentReview } from '@/features/ai/AIDocumentReview';
-import { AIPresentationReview } from '@/features/ai/AIPresentationReview';
-import { Grades } from '@/pages/Grades';
-import { Finance } from '@/pages/Finance';
-import { FlashcardsPage } from '@/pages/FlashcardsPage';
-import { HomeHub } from '@/pages/HomeHub';
+import { AIPresentationCreate, PresentationGenerationRequest } from '@/features/ai/AIPresentationCreate';
 import { NoteEditor } from '@/features/editor/NoteEditor';
 import { ResourcePreview } from '@/features/resources/ResourcePreview';
-import { StudioPage } from '@/pages/StudioPage';
 import { PresentationEditor } from '@/features/editor/PresentationEditor';
-import { Library } from '@/pages/Library';
+
+// Lazy load large components
+const StudyRepository = lazy(() => import('@/pages/StudyRepository').then(m => ({ default: m.StudyRepository })));
+const Planner = lazy(() => import('@/pages/Planner').then(m => ({ default: m.Planner })));
+const FocusMode = lazy(() => import('@/features/tasks/FocusMode').then(m => ({ default: m.FocusMode })));
+const ChatLocalLLM = lazy(() => import('@/features/ai/ChatLocalLLM').then(m => ({ default: m.ChatLocalLLM })));
+const AIDocumentReview = lazy(() => import('@/features/ai/AIDocumentReview').then(m => ({ default: m.AIDocumentReview })));
+const AIPresentationReview = lazy(() => import('@/features/ai/AIPresentationReview').then(m => ({ default: m.AIPresentationReview })));
+const Grades = lazy(() => import('@/pages/Grades').then(m => ({ default: m.Grades })));
+const Finance = lazy(() => import('@/pages/Finance').then(m => ({ default: m.Finance })));
+const FlashcardsPage = lazy(() => import('@/pages/FlashcardsPage').then(m => ({ default: m.FlashcardsPage })));
+const HomeHub = lazy(() => import('@/pages/HomeHub').then(m => ({ default: m.HomeHub })));
+const StudioPage = lazy(() => import('@/pages/StudioPage').then(m => ({ default: m.StudioPage })));
+const Library = lazy(() => import('@/pages/Library').then(m => ({ default: m.Library })));
+const Performance = lazy(() => import('@/pages/Performance').then(m => ({ default: m.Performance })));
 import { useAIGeneration } from '@/contexts/AIGenerationContext';
 import { invoke } from '@tauri-apps/api/core';
 import { useMemo } from 'react';
+import logger from '@/lib/logger';
+import { GenerationResult, ChatResult } from '@/types/ai';
 
 interface MainViewRouterProps {
     activeView: string;
@@ -36,21 +43,21 @@ export function MainViewRouter({
 }: MainViewRouterProps) {
     const { state, setState, reset } = useAIGeneration();
 
-    const handleDocumentGenerate = async (data: DocumentGenerationData) => {
-        console.log('handleDocumentGenerate called with:', data);
+const handleDocumentGenerate = async (data: DocumentGenerationData) => {
+        logger.debug('handleDocumentGenerate called with:', data);
         setState({ isGenerating: true, generationData: data, generatedContent: '' });
         try {
-            console.log('Invoking generate_document...');
-            const result: any = await invoke('generate_document', { request: data });
-            console.log('Generation result:', result);
+            logger.debug('Invoking generate_document...');
+            const result: GenerationResult = await invoke('generate_document', { request: data });
+            logger.debug('Generation result:', result);
             setState({
                 isGenerating: false,
                 generatedContent: result.content,
                 error: undefined
             });
-            setActiveView('ai-document-review');
+setActiveView('ai-document-review');
         } catch (error) {
-            console.log('Generation error:', error);
+            logger.error('Generation error:', error);
             setState({
                 isGenerating: false,
                 error: error as string
@@ -59,10 +66,10 @@ export function MainViewRouter({
         }
     };
 
-    const handlePresentationGenerate = async (data: PresentationGenerationData) => {
+    const handlePresentationGenerate = async (data: PresentationGenerationRequest) => {
         setState({ isGenerating: true, generationData: data, generatedContent: '' });
         try {
-            const result: any = await invoke('generate_presentation', { request: data });
+            const result: GenerationResult = await invoke('generate_presentation', { request: data });
             setState({
                 isGenerating: false,
                 generatedContent: result.content,
@@ -83,8 +90,8 @@ export function MainViewRouter({
 
         setState({ isGenerating: true });
         try {
-            const refinePrompt = `Original content:\n${state.generatedContent}\n\nRefinement instructions: ${instructions}\n\nPlease provide the refined version.`;
-            const result: any = await invoke('chat_direct', {
+const refinePrompt = `Original content:\n${state.generatedContent}\n\nRefinement instructions: ${instructions}\n\nPlease provide the refined version.`;
+            const result: ChatResult = await invoke('chat_direct', {
                 prompt: refinePrompt,
                 max_tokens: 2048,
                 temperature: 0.7
@@ -145,23 +152,55 @@ export function MainViewRouter({
 
     // list of views that should be preserved
     const persistentViews = useMemo(() => [
-        { id: 'main', component: <HomeHub onOpenFile={(res: Resource) => setActiveResource(res)} /> },
-        { id: 'planner', component: <Planner /> },
-        { id: 'repository', component: <StudyRepository /> },
-        { id: 'library', component: <Library onOpenBook={(book) => { setActiveResource(book); setActiveView('main'); }} /> },
-        { id: 'focus', component: <FocusMode activeView={activeView} /> },
-        { id: 'grades', component: <Grades /> },
-        { id: 'finance', component: <Finance /> },
-        { id: 'flashcards', component: <FlashcardsPage /> },
-        { id: 'chat', component: <ChatLocalLLM /> },
+        { 
+            id: 'main', 
+            component: <Suspense fallback={<SkeletonCard />}><HomeHub onOpenFile={(res: Resource) => setActiveResource(res)} /></Suspense> 
+        },
+        { 
+            id: 'planner', 
+            component: <Suspense fallback={<Skeleton />}><Planner /></Suspense> 
+        },
+        { 
+            id: 'repository', 
+            component: <Suspense fallback={<SkeletonCard />}><StudyRepository /></Suspense> 
+        },
+        { 
+            id: 'library', 
+            component: <Suspense fallback={<SkeletonCard />}><Library onOpenBook={(book: any) => { setActiveResource(book); setActiveView('main'); }} /></Suspense> 
+        },
+        { 
+            id: 'focus', 
+            component: <Suspense fallback={<Skeleton />}><FocusMode activeView={activeView} /></Suspense> 
+        },
+        { 
+            id: 'grades', 
+            component: <Suspense fallback={<SkeletonTable />}><Grades /></Suspense> 
+        },
+        { 
+            id: 'finance', 
+            component: <Suspense fallback={<Skeleton />}><Finance /></Suspense> 
+        },
+        { 
+            id: 'flashcards', 
+            component: <Suspense fallback={<SkeletonCard />}><FlashcardsPage /></Suspense> 
+        },
+        { 
+            id: 'chat', 
+            component: <Suspense fallback={<Skeleton />}><ChatLocalLLM /></Suspense> 
+        },
         {
-            id: 'studio', component: <StudioPage
+            id: 'studio', 
+            component: <Suspense fallback={<Skeleton />}><StudioPage
                 onViewResource={(res: Resource) => {
                     setActiveResource(res);
                     setActiveView('main');
                 }}
                 setActiveView={setActiveView}
-            />
+            /></Suspense>
+        },
+        { 
+            id: 'performance', 
+            component: <Suspense fallback={<Skeleton />}><Performance /></Suspense> 
         },
     ], [setActiveResource, setActiveView]);
 
@@ -211,7 +250,7 @@ export function MainViewRouter({
                 <div className="w-full h-full overflow-hidden">
                     {activeView === "ai-document-create" && <AIDocumentCreate onBack={() => setActiveView('studio')} onGenerate={handleDocumentGenerate} />}
                     {activeView === "ai-presentation-create" && <AIPresentationCreate onBack={() => setActiveView('studio')} onGenerate={handlePresentationGenerate} />}
-                    {activeView === "ai-document-review" && <AIDocumentReview
+                    {activeView === "ai-document-review" && <Suspense fallback={<Skeleton />}><AIDocumentReview
                         onBack={() => setActiveView('ai-document-create')}
                         generationData={state.generationData}
                         generatedContent={state.generatedContent}
@@ -220,8 +259,8 @@ export function MainViewRouter({
                         onSave={handleSave}
                         isGenerating={state.isGenerating}
                         error={state.error}
-                    />}
-                    {activeView === "ai-presentation-review" && <AIPresentationReview
+                    /></Suspense>}
+                    {activeView === "ai-presentation-review" && <Suspense fallback={<Skeleton />}><AIPresentationReview
                         onBack={() => setActiveView('ai-presentation-create')}
                         generationData={state.generationData}
                         generatedContent={{ slides: [] }} // TODO: Parse actual slides
@@ -230,7 +269,7 @@ export function MainViewRouter({
                         onSave={handleSave}
                         isGenerating={state.isGenerating}
                         error={state.error}
-                    />}
+                    /></Suspense>}
                 </div>
             )}
         </Layout>

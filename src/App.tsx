@@ -11,15 +11,35 @@ import { MainViewRouter } from "@/components/routing/MainViewRouter";
 import { AppSettingsProvider, useAppSettings } from "@/contexts/AppSettingsContext";
 import { UserProfileProvider } from "@/contexts/UserProfileContext";
 import { AIGenerationProvider } from "@/contexts/AIGenerationContext";
+import { PWAProvider } from "@/contexts/PWAContext";
+import { OfflineIndicator } from "@/components/sync/OfflineIndicator";
+import { InstallPrompt } from "@/components/sync/InstallPrompt";
 import { useAppInitialization } from "@/hooks/useAppInitialization";
 import { Resource } from "@/types/node-system";
 import { invoke } from "@tauri-apps/api/core";
+import logger from "@/lib/logger";
+import { SkeletonCard } from "@/components/ui/Skeleton";
+import { SkipLink } from "@/components/ui/SkipLink";
+import { usePerformanceIntegration } from "@/hooks/usePerformanceIntegration";
+import { cacheWarmingService } from "@/lib/cacheWarmingService";
 
 function AppContent() {
   const [activeView, setActiveView] = useState<string>("main");
   const [activeResource, setActiveResource] = useState<Resource | null>(null);
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
   const [isSwitchingProfile, setIsSwitchingProfile] = useState<boolean>(false);
+  
+  // Initialize performance monitoring
+  usePerformanceIntegration();
+
+  // Initialize cache warming service
+  useEffect(() => {
+    cacheWarmingService.start();
+    
+    return () => {
+      cacheWarmingService.stop();
+    };
+  }, []);
 
   const { settings, toggleSidebar } = useAppSettings();
   const {
@@ -36,8 +56,8 @@ function AppContent() {
   useEffect(() => {
     const handleKeyPress = async (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'R') {
-        e.preventDefault();
-        console.log("Resetting onboarding...");
+e.preventDefault();
+        logger.debug("Resetting onboarding...");
         try {
           await invoke('set_onboarding_state', { onboardingState: { completed: false } });
           setOnboardingComplete(false);
@@ -45,7 +65,7 @@ function AppContent() {
           await appWindow.setSize(new LogicalSize(1024, 768));
           await appWindow.center();
         } catch (error) {
-          console.error("Failed to reset onboarding:", error);
+          logger.error("Failed to reset onboarding:", error);
         }
       }
     };
@@ -53,7 +73,20 @@ function AppContent() {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [setOnboardingComplete]);
 
-  if (isLoading) return null;
+  if (isLoading) {
+    return (
+      <div className="flex flex-col h-screen w-screen overflow-hidden" style={{ backgroundColor: "var(--bg-primary)" }}>
+        <TitleBar />
+        <div className="flex-1 p-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (authChecked && !currentUser) {
     return (
@@ -85,10 +118,10 @@ function AppContent() {
         onOpenSettings={() => setSettingsOpen(true)}
       />
 
-      {/* Skip to Content Link for Accessibility */}
-      <a href="#main-content" className="skip-link">
+{/* Skip to Content Link for Accessibility */}
+      <SkipLink target="#main-content">
         Skip to main content
-      </a>
+      </SkipLink>
 
       <div className="flex flex-1 overflow-hidden relative" id="main-content">
         <Sidebar
@@ -138,7 +171,11 @@ export default function App() {
     <AppSettingsProvider>
       <UserProfileProvider>
         <AIGenerationProvider>
-          <AppContent />
+          <PWAProvider>
+            <AppContent />
+            <OfflineIndicator />
+            <InstallPrompt />
+          </PWAProvider>
         </AIGenerationProvider>
       </UserProfileProvider>
     </AppSettingsProvider>

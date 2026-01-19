@@ -14,6 +14,7 @@ import { Resource } from '../types/node-system';
 import { StudioResourceTools } from '@/features/resources/StudioResourceTools';
 import { useAIGeneration } from '@/contexts/AIGenerationContext';
 
+
 interface StudioPageProps {
     onViewResource: (res: Resource) => void;
     setActiveView: (view: string) => void;
@@ -72,7 +73,7 @@ export function StudioPage({ onViewResource, setActiveView }: StudioPageProps) {
                         <div>
                             <h4 className="text-lg font-bold text-text-primary">Unsaved Generation Found</h4>
                             <p className="text-sm text-text-tertiary">
-                                You have an unsaved {state.generationData?.document_type ? 'document' : 'presentation'}
+You have an unsaved {state.generationData && 'presentation_type' in state.generationData ? 'presentation' : 'document'}
                                 {state.generationData?.title ? `: "${state.generationData.title}"` : ''}
                                 ready for review.
                             </p>
@@ -87,7 +88,7 @@ export function StudioPage({ onViewResource, setActiveView }: StudioPageProps) {
                             <Trash2 size={20} />
                         </button>
                         <button
-                            onClick={() => setActiveView(state.generationData?.document_type ? 'ai-document-review' : 'ai-presentation-review')}
+                            onClick={() => setActiveView(state.generationData && 'presentation_type' in state.generationData ? 'ai-presentation-review' : 'ai-document-review')}
                             className="bg-accent text-black px-6 py-3 rounded-xl text-sm font-bold hover:scale-105 transition-transform shadow-lg shadow-accent/20"
                         >
                             Continue Review

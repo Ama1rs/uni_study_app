@@ -1,24 +1,11 @@
 import { motion } from 'framer-motion';
 import { ArrowLeft, Presentation, Sparkles, Users, MessageSquare, ChevronRight, Image } from 'lucide-react';
 import { useAIGeneration } from '@/contexts/AIGenerationContext';
+import { PresentationGenerationRequest } from '@/types/ai';
 
 interface AIPresentationCreateProps {
     onBack: () => void;
-    onGenerate: (data: PresentationGenerationData) => void;
-}
-
-export interface PresentationGenerationData {
-    title: string;
-    topic: string;
-    description: string;
-    target_audience: string;
-    tone: string;
-    slide_count: string;
-    language: string;
-    slide_style: string;
-    bullet_preference: string;
-    include_speaker_notes: boolean;
-    reference_material: string;
+    onGenerate: (data: PresentationGenerationRequest) => void;
 }
 
 export function AIPresentationCreate({ onBack, onGenerate }: AIPresentationCreateProps) {
@@ -30,7 +17,7 @@ export function AIPresentationCreate({ onBack, onGenerate }: AIPresentationCreat
         onGenerate(formData);
     };
 
-    const updateFormData = (field: keyof PresentationGenerationData, value: string | boolean) => {
+    const updateFormData = (field: keyof PresentationGenerationRequest, value: string | boolean) => {
         setState({
             presentationFormData: { ...formData, [field]: value }
         });
@@ -250,7 +237,9 @@ export function AIPresentationCreate({ onBack, onGenerate }: AIPresentationCreat
                         <ChevronRight size={20} />
                     </motion.button>
                 </div>
-            </motion.form>
+</motion.form>
         </div>
     );
 }
+
+export type { PresentationGenerationRequest } from '@/types/ai';

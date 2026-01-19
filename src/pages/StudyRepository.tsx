@@ -3,20 +3,13 @@ import { invoke } from '@tauri-apps/api/core';
 import { Plus, Search, Filter, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { adaptRepositories, RepositoryNumber } from '../lib/typeAdapters';
 
 import { RepositoryView } from '../features/knowledge-graph/RepositoryView';
 
-interface Repository {
-    id: number;
-    name: string;
-    code?: string;
-    semester?: string;
-    description?: string;
-}
-
 export function StudyRepository() {
-    const [repositories, setRepositories] = useState<Repository[]>([]);
-    const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
+    const [repositories, setRepositories] = useState<RepositoryNumber[]>([]);
+    const [selectedRepo, setSelectedRepo] = useState<RepositoryNumber | null>(null);
     const [showAddRepository, setShowAddRepository] = useState(false);
 
     // Form States
@@ -34,8 +27,8 @@ export function StudyRepository() {
 
     async function loadRepositories() {
         try {
-            const res = await invoke<Repository[]>('get_repositories');
-            setRepositories(res);
+const res = await invoke<any[]>('get_repositories');
+            setRepositories(adaptRepositories(res));
         } catch (e) {
             console.error("Failed to load repositories:", e);
         }

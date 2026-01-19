@@ -1,15 +1,47 @@
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Circle, Calendar, BookOpen, Upload, Search as SearchIcon, PanelRightOpen, Play } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { itemVariants } from '../lib/animations';
 import { Button } from '../components/ui/Button';
+import { SkeletonCard, Skeleton } from '../components/ui/Skeleton';
 
 export function Dashboard() {
+    const [isLoading, setIsLoading] = useState(true);
     const { profile } = useUserProfile();
 
     const currentHour = new Date().getHours();
     const greeting = currentHour < 12 ? 'Good morning' : currentHour < 18 ? 'Good afternoon' : 'Good evening';
+
+    // Simulate loading
+    React.useEffect(() => {
+        const timer = setTimeout(() => setIsLoading(false), 1000);
+        return () => clearTimeout(timer);
+    }, []);
+
+    if (isLoading) {
+        return (
+            <div className="flex h-screen overflow-hidden bg-bg-primary">
+                <div className="w-[300px] border-r border-border bg-bg-surface/50 flex flex-col h-full p-6">
+                    <Skeleton width={200} height={32} className="mb-2" />
+                    <Skeleton width={150} height={16} className="mb-6" />
+                    <div className="space-y-3">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                            <SkeletonCard key={i} />
+                        ))}
+                    </div>
+                </div>
+                <div className="flex-1 p-6">
+                    <div className="grid grid-cols-2 gap-6 mb-6">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                            <SkeletonCard key={i} />
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex h-screen overflow-hidden bg-bg-primary">

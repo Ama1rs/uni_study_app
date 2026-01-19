@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useCloudStatus } from '@/hooks/useCloudStatus';
 import { Wifi, WifiOff, CheckCircle, XCircle, AlertCircle, RefreshCw, Database, Clock, Globe, Key, User, Activity } from 'lucide-react';
+import logger from '@/lib/logger';
 
 interface CloudDebugPanelProps {
   className?: string;
@@ -210,15 +211,15 @@ export function CloudDebugPanel({ className }: CloudDebugPanelProps) {
         <div className="text-sm font-medium mb-3">Quick Tests</div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           <button
-            onClick={() => console.log("Internet:", navigator.onLine)}
+            onClick={() => logger.debug("Internet:", navigator.onLine)}
             className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded text-xs"
           >
             Test Internet
           </button>
           <button
             onClick={() => {
-              console.log("URL:", import.meta.env.VITE_SUPABASE_URL);
-              console.log("KEY:", import.meta.env.VITE_SUPABASE_ANON_KEY?.slice(0, 10));
+              logger.debug("URL:", import.meta.env.VITE_SUPABASE_URL);
+              logger.debug("KEY:", import.meta.env.VITE_SUPABASE_ANON_KEY?.slice(0, 10));
             }}
             className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded text-xs"
           >
@@ -227,7 +228,7 @@ export function CloudDebugPanel({ className }: CloudDebugPanelProps) {
           <button
             onClick={() => {
               if (typeof window.debugCloudStatus === 'function') {
-                window.debugCloudStatus().then(console.log);
+                window.debugCloudStatus().then(logger.debug);
               }
             }}
             className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded text-xs"
@@ -237,7 +238,7 @@ export function CloudDebugPanel({ className }: CloudDebugPanelProps) {
           <button
             onClick={() => {
               if (typeof window.cloudStatusDebug !== 'undefined') {
-                console.log("Cloud Status Debug:", window.cloudStatusDebug);
+                logger.debug("Cloud Status Debug:", window.cloudStatusDebug);
               }
             }}
             className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded text-xs"

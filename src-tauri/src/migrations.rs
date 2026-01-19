@@ -115,8 +115,8 @@ pub fn run_profile_migrations(conn: &Connection) -> Result<()> {
             include_str!("../migrations/0024_migration_system.sql"),
         ),
         (
-            "0025_streamline_onboarding",
-            include_str!("../migrations/0025_streamline_onboarding.sql"),
+            "0027_clean_onboarding_fix",
+            include_str!("../migrations/0027_clean_onboarding_fix.sql"),
         ),
     ];
 

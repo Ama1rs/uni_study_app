@@ -11,6 +11,8 @@ import {
   enableHardwareAcceleratedScrolling,
   disableFrameRateLimits,
 } from "./lib/renderingOptimization";
+import logger from "./lib/logger";
+import "./lib/performanceMonitor"; // Initialize performance monitoring
 
 // Initialize high-performance rendering
 initializeRenderingOptimizations();
@@ -20,7 +22,7 @@ detectDisplayRefreshRate().then(() => {
   requestMaxRefreshRate();
   enableHardwareAcceleratedScrolling();
   disableFrameRateLimits();
-  console.log('✓ Rendering system fully initialized');
+  logger.debug('✓ Rendering system fully initialized');
 });
 
 import { Toaster } from 'sonner';

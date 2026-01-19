@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Menu, Settings, X, Minus, Maximize2, Minimize2 } from 'lucide-react';
 import { Window } from '@tauri-apps/api/window';
+import logger from '@/lib/logger';
 
 export function TitleBar({
   onToggleSidebar,
@@ -36,8 +37,8 @@ export function TitleBar({
         });
 
         listenerRef.current = unlisten;
-      } catch (error) {
-        console.error('Failed to initialize window:', error);
+} catch (error) {
+        logger.error('Failed to initialize window:', error);
       }
     };
 
@@ -55,15 +56,15 @@ export function TitleBar({
   // Window controls
   const handleMinimize = async () => {
     try {
-      if (!windowRef.current) {
-        console.error('Window reference not initialized');
+if (!windowRef.current) {
+        logger.error('Window reference not initialized');
         return;
       }
-      console.log('Minimize button clicked, attempting to minimize...');
+      logger.debug('Minimize button clicked, attempting to minimize...');
       await windowRef.current.minimize();
-      console.log('Window minimized successfully');
+      logger.debug('Window minimized successfully');
     } catch (error) {
-      console.error('Minimize failed:', error);
+      logger.error('Minimize failed:', error);
     }
   };
 
@@ -156,8 +157,8 @@ export function TitleBar({
         )}
         {/* Minimize */}
         <button
-          onClick={() => {
-            console.log('Minimize button clicked');
+onClick={() => {
+            logger.debug('Minimize button clicked');
             handleMinimize();
           }}
           className="w-12 h-full flex items-center justify-center hover:bg-bg-hover transition-colors text-text-tertiary hover:text-text-primary active:bg-bg-hover/50"

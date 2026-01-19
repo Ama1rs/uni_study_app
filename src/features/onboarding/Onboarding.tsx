@@ -81,13 +81,13 @@ export function Onboarding({ userId, onComplete }: { userId: number; onComplete:
 
     return (
         <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm grid place-items-center">
-            <div className="w-[500px] max-h-[90vh] bg-[#1a1a1a] border border-white/10 rounded-2xl shadow-2xl flex flex-col">
+            <div className="w-[500px] max-h-[90vh] bg-surface border rounded-2xl shadow-2xl flex flex-col">
                 {/* Step indicator */}
-                <div className="flex items-center gap-1.5 px-6 py-4 border-b border-white/10">
+                <div className="flex items-center gap-1.5 px-6 py-4 border-b">
                     {steps.map((s, i) => (
                         <div
                             key={s}
-                            className={`h-1 flex-1 rounded-full transition-colors ${i <= currentIndex ? 'bg-accent' : 'bg-white/20'
+                            className={`h-1 flex-1 rounded-full transition-colors ${i <= currentIndex ? 'bg-accent' : 'bg-tertiary'
                                 }`}
                         />
                     ))}

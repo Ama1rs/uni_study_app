@@ -1,8 +1,9 @@
 // src/lib/supabase.ts
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import config from './config';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const SUPABASE_URL = config.SUPABASE_URL as string;
+const SUPABASE_ANON_KEY = config.SUPABASE_ANON_KEY as string;
 
 export interface BackendCapabilities {
   auth: boolean;

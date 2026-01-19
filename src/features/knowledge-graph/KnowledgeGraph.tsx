@@ -14,8 +14,8 @@ interface Node {
 }
 
 interface GraphLink {
-    source: string | any;
-    target: string | any;
+    source: string | Node;
+    target: string | Node;
     color?: string;
     width?: number;
     dashed?: boolean;
@@ -33,20 +33,20 @@ import { Edit, Trash2, Link as LinkIcon, Eye } from 'lucide-react';
 
 interface KnowledgeGraphProps {
     data: GraphData;
-    onNodeClick?: (node: any) => void;
-    onOpenNode?: (node: any, pos?: { x: number, y: number }) => void;
-    onEditNode?: (node: any, pos?: { x: number, y: number }) => void;
-    onDeleteNode?: (node: any, pos?: { x: number, y: number }) => void;
-    onLinkNode?: (node: any, pos?: { x: number, y: number }) => void;
+    onNodeClick?: (node: Node) => void;
+    onOpenNode?: (node: Node, pos?: { x: number, y: number }) => void;
+    onEditNode?: (node: Node, pos?: { x: number, y: number }) => void;
+    onDeleteNode?: (node: Node, pos?: { x: number, y: number }) => void;
+    onLinkNode?: (node: Node, pos?: { x: number, y: number }) => void;
 }
 
 export function KnowledgeGraph({ data, onNodeClick, onOpenNode, onEditNode, onDeleteNode, onLinkNode }: KnowledgeGraphProps) {
     const { settings } = useAppSettings();
-    const graphRef = useRef<any>(null);
+const graphRef = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const imgCache = useRef<Map<string, HTMLImageElement>>(new Map());
     const [dimensions, setDimensions] = useState({ w: 100, h: 100 });
-    const [menuState, setMenuState] = useState<{ x: number; y: number; node: any } | null>(null);
+    const [menuState, setMenuState] = useState<{ x: number; y: number; node: Node } | null>(null);
     const [_isStabilizing, setIsStabilizing] = useState(true);
     const gravityIntervalRef = useRef<NodeJS.Timeout | null>(null);
 

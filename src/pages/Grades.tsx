@@ -8,26 +8,15 @@ import { GradingScale, ProjectionResult, GradeSummary, Semester, SemesterGpa, Pr
 import { AcademicOnboardingWizard } from '../features/courses/AcademicOnboardingWizard';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
+import logger from '../lib/logger';
 import { StatsGrid } from '../features/courses/components/StatsGrid';
 import { PerformanceTimeline } from '../features/courses/components/PerformanceTimeline';
 import { CourseList } from '../features/courses/components/CourseList';
 import { PastSemesterList } from '../features/courses/components/PastSemesterList';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { RepositoryNumber, adaptExtendedRepository } from '../lib/typeAdapters';
 
-
-interface ExtendedRepository {
-    id: number;
-    name: string;
-    code?: string;
-    credits: number;
-    description?: string;
-    semester_id?: number | null;
-    manual_grade?: number | null;
-    status: string;
-    component_config?: string | null;
-    component_scores?: string | null;
-    grading_scale_id?: number | null;
-}
+export type ExtendedRepository = RepositoryNumber;
 
 export function Grades() {
     const [semesters, setSemesters] = useState<Semester[]>([]);
@@ -67,26 +56,26 @@ export function Grades() {
         setIsLoading(true);
         setError(null);
 
-        try {
-            console.log('[Grades] Starting data refresh...');
+try {
+            logger.debug('[Grades] Starting data refresh...');
 
-            console.log('[Grades] Fetching all data in parallel...');
+            logger.debug('[Grades] Fetching all data in parallel...');
             await Promise.all([
                 withTimeout(fetchScales(), 5000, 'fetchScales'),
                 withTimeout(fetchData(), 5000, 'fetchData'),
                 withTimeout(fetchSummary(), 10000, 'fetchSummary'),
                 withTimeout(fetchProjection(), 10000, 'fetchProjection'),
             ]);
-            console.log('[Grades] ✓ All data loaded');
+            logger.debug('[Grades] ✓ All data loaded');
 
-            // Check Onboarding Status
+// Check Onboarding Status
             const userProgram = await invoke<Program | null>('get_user_program');
             if (!userProgram) {
-                console.log('[Grades] No user program found, triggering onboarding');
+                logger.debug('[Grades] No user program found, triggering onboarding');
                 setShowOnboarding(true);
             }
 
-            console.log('[Grades] All data loaded successfully');
+            logger.debug('[Grades] All data loaded successfully');
         } catch (e: any) {
             console.error('[Grades] Error refreshing data:', e);
             const errorMsg = e?.message || e?.toString() || 'Unknown error';
@@ -102,34 +91,35 @@ export function Grades() {
         refreshAll();
     }, [refreshAll]);
 
-    async function fetchScales() {
+async function fetchScales() {
         try {
-            console.log('[Grades] → Invoking get_grading_scales');
+            logger.debug('[Grades] → Invoking get_grading_scales');
             const s = await invoke<GradingScale[]>('get_grading_scales');
             setScales(s);
         } catch (e) {
-            console.error('[Grades] Scale fetch failed:', e);
+            logger.error('[Grades] Scale fetch failed:', e);
             throw e;
         }
     }
 
     async function fetchData() {
         try {
-            console.log('[Grades] → Invoking get_semesters');
+            logger.debug('[Grades] → Invoking get_semesters');
             const s = await invoke<Semester[]>('get_semesters');
-            console.log('[Grades] → Invoking get_repositories');
-            const c = await invoke<ExtendedRepository[]>('get_repositories');
+logger.debug('[Grades] → Invoking get_repositories');
+            const c = await invoke<any[]>('get_repositories');
+            setCourses(c.map(adaptExtendedRepository));
             setSemesters(s);
             setCourses(c);
         } catch (e) {
-            console.error('[Grades] Data fetch failed:', e);
+            logger.error('[Grades] Data fetch failed:', e);
             throw e;
         }
     }
 
     async function fetchSummary() {
         try {
-            console.log('[Grades] → Invoking get_gpa_summary');
+            logger.debug('[Grades] → Invoking get_gpa_summary');
             const sum = await invoke<GradeSummary>('get_gpa_summary');
             setSummary(sum);
         } catch (e) {
@@ -138,13 +128,13 @@ export function Grades() {
         }
     }
 
-    async function fetchProjection() {
+async function fetchProjection() {
         try {
-            console.log('[Grades] → Invoking project_grades');
+            logger.debug('[Grades] → Invoking project_grades');
             const proj = await invoke<ProjectionResult>('project_grades');
             setProjection(proj);
         } catch (e) {
-            console.error('[Grades] Projection fetch failed:', e);
+            logger.error('[Grades] Projection fetch failed:', e);
             throw e;
         }
     }

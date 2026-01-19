@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { X, Palette, Bot, Database, User, Share2 } from 'lucide-react';
+import { X, Palette, Bot, Database, User, Share2, Activity } from 'lucide-react';
 import { ThemeCustomizer } from './ThemeCustomizer';
 import { GraphSettings } from './GraphSettings';
 import { AISettings } from '../ai/AISettings';
 import { DataSettings } from './DataSettings';
 import { ProfileSettings } from './ProfileSettings';
+import { PerformanceSettings } from './PerformanceSettings';
 import { cn } from '../../lib/utils';
 
-type SettingsTab = 'appearance' | 'graph' | 'ai' | 'data' | 'profile';
+type SettingsTab = 'appearance' | 'graph' | 'ai' | 'data' | 'profile' | 'performance';
 
 export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
     const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
@@ -20,6 +21,7 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
         { id: 'ai', label: 'AI & Intelligence', icon: Bot },
         { id: 'data', label: 'Data & Storage', icon: Database },
         { id: 'profile', label: 'Profile', icon: User },
+        { id: 'performance', label: 'Performance', icon: Activity },
     ];
 
     return (
@@ -82,6 +84,7 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                         {activeTab === 'ai' && <AISettings />}
                         {activeTab === 'data' && <DataSettings />}
                         {activeTab === 'profile' && <ProfileSettings />}
+                        {activeTab === 'performance' && <PerformanceSettings />}
                     </div>
                 </div>
             </div>

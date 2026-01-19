@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { ArrowLeft, FileText, Sparkles, Users, MessageSquare, BookOpen, ChevronRight } from 'lucide-react';
 import { useAIGeneration } from '@/contexts/AIGenerationContext';
+import logger from '@/lib/logger';
 
 interface AIDocumentCreateProps {
     onBack: () => void;
@@ -25,9 +26,9 @@ export function AIDocumentCreate({ onBack, onGenerate }: AIDocumentCreateProps) 
     const { state, setState } = useAIGeneration();
     const formData = state.documentFormData;
 
-    const handleSubmit = (e: React.FormEvent) => {
+const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        console.log('AIDocumentCreate handleSubmit called with formData:', formData);
+        logger.debug('AIDocumentCreate handleSubmit called with formData:', formData);
         onGenerate(formData);
     };
 

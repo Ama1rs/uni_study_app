@@ -28,26 +28,14 @@ import { GraphLegend } from './components/GraphLegend';
 import { Button } from '../../components/ui/Button';
 import { RefreshCw } from 'lucide-react';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { RepositoryNumber, ResourceNumber } from '../../lib/typeAdapters';
 import { useAppSettings } from '../../contexts/AppSettingsContext';
 
-export interface Repository {
-    id: number;
-    name: string;
-    description?: string;
-}
-
-export interface Resource {
-    id: number;
-    repository_id: number;
-    title: string;
-    type: string;
-    path?: string;
-    content?: string;
-    tags?: string;
-}
+export type Repository = RepositoryNumber;
+export type Resource = ResourceNumber;
 
 interface RepositoryViewProps {
-    repository: Repository;
+    repository: RepositoryNumber;
     onBack: () => void;
 }
 

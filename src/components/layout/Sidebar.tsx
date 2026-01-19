@@ -1,9 +1,23 @@
-import { Home, Calendar, BookOpen, Timer, MessageSquare, GraduationCap, Brain, PenTool, Wallet, Library } from 'lucide-react';
+import { Home, Calendar, BookOpen, Timer, MessageSquare, GraduationCap, Brain, PenTool, Wallet, Library, Activity } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '../../lib/utils';
 import { itemVariants } from '../../lib/animations';
 
 import { useTheme } from '../../contexts/ThemeContext';
+
+// Preload functions for common navigation paths
+const preloadViews = {
+    repository: () => import('@/pages/StudyRepository'),
+    library: () => import('@/pages/Library'),
+    flashcards: () => import('@/pages/FlashcardsPage'),
+    planner: () => import('@/pages/Planner'),
+    focus: () => import('@/features/tasks/FocusMode'),
+    grades: () => import('@/pages/Grades'),
+    finance: () => import('@/pages/Finance'),
+    chat: () => import('@/features/ai/ChatLocalLLM'),
+    studio: () => import('@/pages/StudioPage'),
+    performance: () => import('@/pages/Performance'),
+};
 
 interface SidebarProps {
     activeView: string;
@@ -18,6 +32,14 @@ export function Sidebar({
 }: SidebarProps) {
     const { mode } = useTheme();
     const isDark = mode === 'dark';
+
+    // Preload component on hover
+    const handleMouseEnter = (viewId: string) => {
+        const preloadFn = preloadViews[viewId as keyof typeof preloadViews];
+        if (preloadFn) {
+            preloadFn();
+        }
+    };
     const navGroups = [
         {
             items: [
@@ -39,6 +61,7 @@ export function Sidebar({
                 { id: 'finance', label: 'Finance', icon: Wallet },
                 { id: 'chat', label: 'Chat', icon: MessageSquare },
                 { id: 'studio', label: 'Studio', icon: PenTool },
+                { id: 'performance', label: 'Performance', icon: Activity },
             ]
         }
     ];
@@ -78,6 +101,7 @@ export function Sidebar({
                                     <motion.button
                                         key={item.id}
                                         onClick={() => onViewChange(item.id)}
+                                        onMouseEnter={() => handleMouseEnter(item.id)}
                                         className={cn(
                                             "w-10 h-10 flex items-center justify-center rounded-2xl transition-all duration-500 group relative shrink-0",
                                             isActive

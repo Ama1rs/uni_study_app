@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import logger from '@/lib/logger';
 import { Program } from '../../types/grading';
 import { X, Trash2, Plus, GraduationCap, Award } from 'lucide-react';
 import { AcademicOnboardingWizard } from './AcademicOnboardingWizard';
@@ -42,10 +43,10 @@ export function GradeSettingsDialog({ isOpen, onClose, onSave }: GradeSettingsDi
 
     async function handleSave() {
         if (selectedProgramId) {
-            try {
-                console.log('[GradeSettings] Setting user program to:', selectedProgramId);
+try {
+                logger.debug('[GradeSettings] Setting user program to:', selectedProgramId);
                 await invoke('set_user_program', { programId: selectedProgramId });
-                console.log('[GradeSettings] ✓ Program set successfully');
+                logger.debug('[GradeSettings] ✓ Program set successfully');
                 onSave();
                 onClose();
             } catch (e) {

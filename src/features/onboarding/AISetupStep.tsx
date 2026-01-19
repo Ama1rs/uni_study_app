@@ -50,7 +50,7 @@ export function AISetupStep({ onNext, onBack }: AISetupStepProps) {
                         onClick={() => setSource('api')}
                         className={`p-4 rounded-lg border text-left transition-all ${source === 'api'
                                 ? 'border-accent bg-accent/10'
-                                : 'border-white/10 bg-white/5 hover:border-white/20'
+                                : 'border bg-surface hover:border hover:bg-hover'
                             }`}
                     >
                         <Key size={20} className={source === 'api' ? 'text-accent' : 'text-text-secondary'} />
@@ -62,7 +62,7 @@ export function AISetupStep({ onNext, onBack }: AISetupStepProps) {
                         onClick={() => setSource('local')}
                         className={`p-4 rounded-lg border text-left transition-all ${source === 'local'
                                 ? 'border-accent bg-accent/10'
-                                : 'border-white/10 bg-white/5 hover:border-white/20'
+                                : 'border bg-surface hover:border hover:bg-hover'
                             }`}
                     >
                         <Cpu size={20} className={source === 'local' ? 'text-accent' : 'text-text-secondary'} />
@@ -82,7 +82,7 @@ export function AISetupStep({ onNext, onBack }: AISetupStepProps) {
                             onClick={() => setUsageProfile(profile.id)}
                             className={`w-full p-3 rounded-lg border text-left transition-all ${usageProfile === profile.id
                                     ? 'border-accent bg-accent/10'
-                                    : 'border-white/10 bg-white/5 hover:border-white/20'
+                                    : 'border bg-surface hover:border hover:bg-hover'
                                 }`}
                         >
                             <div className="flex items-center gap-3">
@@ -99,7 +99,7 @@ export function AISetupStep({ onNext, onBack }: AISetupStepProps) {
 
             {/* Configuration */}
             {source === 'api' && (
-                <div className="bg-black/20 rounded-lg p-4 border border-white/10 mb-6">
+                <div className="bg-card rounded-lg p-4 border mb-6">
                     <div>
                         <label className="block text-xs text-text-secondary mb-1.5">API Endpoint</label>
                         <input
@@ -107,7 +107,7 @@ export function AISetupStep({ onNext, onBack }: AISetupStepProps) {
                             value={apiEndpoint}
                             onChange={(e) => setApiEndpoint(e.target.value)}
                             placeholder="https://api.openai.com/v1 or your OpenAI-compatible endpoint"
-                            className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-md text-sm text-text-primary placeholder-text-tertiary focus:outline-none focus:border-accent"
+                            className="w-full px-3 py-2 bg-surface border rounded-md text-sm text-text-primary placeholder-text-tertiary focus:outline-none focus:border-accent"
                         />
                         <p className="text-xs text-text-tertiary mt-1">For OpenAI, Anthropic, or other OpenAI-compatible APIs</p>
                     </div>
@@ -121,7 +121,7 @@ export function AISetupStep({ onNext, onBack }: AISetupStepProps) {
                 </button>
                 <button 
                     onClick={handleSubmit} 
-                    className="px-4 py-2 bg-accent text-black rounded-md text-sm font-medium flex items-center gap-1 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 bg-accent text-white rounded-md text-sm font-medium flex items-center gap-1 hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     disabled={source === 'api' && !apiEndpoint}
                 >
                     Continue <ArrowRight size={14} />

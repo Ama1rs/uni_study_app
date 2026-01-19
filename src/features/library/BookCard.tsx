@@ -5,6 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useState, useRef } from 'react';
 import { parseBookMetadata, formatTimeAgo } from '@/utils/bookUtils';
 import { ContextMenu, ContextMenuAction } from '@/components/ui/ContextMenu';
+import logger from '@/lib/logger';
 
 interface BookCardProps {
     book: Resource;
@@ -63,7 +64,7 @@ export function BookCard({ book, progress = 0, lastReadAt, viewMode = 'grid', on
         {
             label: 'View Info',
             icon: <Info size={16} />,
-            onClick: () => console.log('View info'), // TODO: Implement info modal
+            onClick: () => logger.debug('View info'), // TODO: Implement info modal
         },
         {
             label: 'Mark as Unread',
